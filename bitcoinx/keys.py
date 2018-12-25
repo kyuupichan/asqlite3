@@ -25,21 +25,13 @@
 
 '''Cryptographic key functions.'''
 
-import secp256k1
 
-
-__all__ = ('shared_secret', 'secp256k1Error')
-
-
-class secp256k1Error(Exception):
-    pass
+__all__ = ('shared_secret', )
 
 
 # Returns a shared secret in the form of an elliptic curve public key
+# Raises ValueError if there is a problem
 def shared_secret(our_priv_key, their_pub_key, deterministic_key):
-    try:
-        our_priv2_key = our_priv_key.tweak_add(deterministic_key)
-        their_pub2_key = their_pub_key.tweak_add(deterministic_key)
-        return their_pub2_key.tweak_mul(our_priv2_key)
-    except Exception as e:
-        raise secp256k1Error(*e.args)
+    our_priv2_key = our_priv_key.add(deterministic_key)
+    their_pub2_key = their_pub_key.add(deterministic_key)
+    return their_pub2_key.multiply(our_priv2_key.secret)
