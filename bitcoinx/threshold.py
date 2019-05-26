@@ -101,18 +101,17 @@ class PublicKeyPolynomial:
         return self.coeffs[0]
 
     def eval_at(self, h):
-        # Evaluate the polynomial at x=h, returns 32 bytes
-        # Done for each other participant's index except our own
         if not isinstance(h, int):
             raise TypeError('h must be an integer')
         if not 0 < h < CURVE_ORDER:
             raise ValueError('h is out of range')
-        h = int_to_be_bytes(h, 32)
-        coeffs = reversed(self.coeffs)
-        result = next(coeffs)
+        power = 1
+        coeffs = iter(self.coeffs)
+        terms = [next(coeffs)]
         for coeff in coeffs:
-            result = result.multiply(h).add(coeff)
-        return result
+            power = (power * h) % CURVE_ORDER
+            terms.append(coeff.multiply(int_to_be_bytes(power, 32)))
+        return PublicKey.combine_keys(terms)
 
 
 # def reciprocal(a):
