@@ -86,8 +86,18 @@ class TestPublicKeyPolynomial:
         # Test that a middle-point evaluation at 0 is OK.  This tests both term-by-term
         # evaluation and factored evaluation
         ([1, 1, 1], CURVE_ORDER - 1, 1),
+        ([1, 3, 3], CURVE_ORDER - 1, 1),
     ))
     def test_eval_at(self, coeffs, h, value):
         public_keys = [PrivateKey.from_int(coeff).public_key for coeff in coeffs]
         value = PrivateKey.from_int(value).public_key
         assert PublicKeyPolynomial(public_keys).eval_at(h) == value
+
+    @pytest.mark.parametrize("coeffs,h", (
+        ([1, 1], CURVE_ORDER - 1),
+        ([2, 3, 1], CURVE_ORDER - 2),
+    ))
+    def test_eval_at_bad(self, coeffs, h):
+        public_keys = [PrivateKey.from_int(coeff).public_key for coeff in coeffs]
+        with pytest.raises(ValueError):
+            PublicKeyPolynomial(public_keys).eval_at(h)
