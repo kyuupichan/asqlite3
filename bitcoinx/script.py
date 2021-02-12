@@ -28,6 +28,8 @@
 
 __all__ = (
     'Ops', 'Script', 'ScriptError', 'TruncatedScriptError', 'InterpreterError',
+    'StackSizeTooLarge', 'TooManyOps', 'MinimalPushOpNotUsed',
+    'InterpreterPolicy', 'InterpreterState', 'InterpreterFlags',
     'ScriptTooLarge', 'TooManyOps', 'MinimalPushOpNotUsed',
     'PushItemTooLarge', 'DisabledOpcode', 'UnclosedConditionals',
     'push_item', 'push_int', 'push_and_drop_item', 'push_and_drop_items',
@@ -649,10 +651,6 @@ class Script:
         return template, items
 
 
-disabled_opcodes = {OP_2MUL, OP_2DIV}
-invalid_branching_opcodes = {OP_VERNOTIF, OP_VERIF}
-
-
 class SmallNum:
     '''Legacy Bitcoin Core mess.'''
     # TODO: needs to handle arithmetic operations and get_int().
@@ -675,12 +673,15 @@ class SmallNum:
         return value
 
 
+UINT_MAX = 0xffffffff
+
+
 class InterpreterPolicy:
     '''Policy rules fixed over the node session.'''
 
     def __init__(self, max_script_size, max_script_num_length, max_ops_per_script):
         self.max_script_size = max_script_size
-        self.max_scrip_num_length = max_script_num_length
+        self.max_script_num_length = max_script_num_length
         self.max_ops_per_script = max_ops_per_script
 
 
@@ -694,13 +695,13 @@ class InterpreterState:
     transaction input.'''
 
     MAX_SCRIPT_SIZE_BEFORE_GENESIS = 10_000
-    MAX_SCRIPT_SIZE_AFTER_GENESIS = 0xffffffff    # UINT_MAX, limited by P2P message size
+    MAX_SCRIPT_SIZE_AFTER_GENESIS = UINT_MAX    # limited by P2P message size
     MAX_SCRIPT_NUM_LENGTH_BEFORE_GENESIS = 4
     MAX_SCRIPT_NUM_LENGTH_AFTER_GENESIS = 750_000
     MAX_SCRIPT_ELEMENT_SIZE_BEFORE_GENESIS = 520
     MAX_STACK_ELEMENTS_BEFORE_GENESIS = 1_000
     MAX_OPS_PER_SCRIPT_BEFORE_GENESIS = 500
-    MAX_OPS_PER_SCRIPT_AFTER_GENESIS = 0xffffffff  # UINT_MAX
+    MAX_OPS_PER_SCRIPT_AFTER_GENESIS = UINT_MAX
 
     def __init__(self, policy, *, flags=0, is_consensus=False, is_genesis_enabled=True,
                  is_utxo_after_genesis=True, sig_checker=None):
@@ -730,16 +731,15 @@ class InterpreterState:
         if self.flags & InterpreterFlags.REQUIRE_MINIMAL_PUSH_OPCODE:
             expected_op = minimal_push_opcode(item)
             if op != expected_op:
-                raise MinimalPushError(f'item not pushed with minimal opcode {expected_op}')
+                raise MinimalPushOpNotUsed(f'item not pushed with minimal opcode {expected_op}')
 
     def validate_stack_size(self):
-        if state.is_utxo_after_genesis:
+        if self.is_utxo_after_genesis:
             return
-        stack_size = len(state.stack) + len(state.alt_stack)
+        stack_size = len(self.stack) + len(self.alt_stack)
         limit = self.MAX_STACK_ELEMENTS_BEFORE_GENESIS
         if stack_size > limit:
             raise StackSizeTooLarge(f'stack size exceeds the limit of {limit:,d} items')
-
 
     # def item_to_int(self, item):
     #     if len(item) > self.max_num_size:
@@ -774,7 +774,7 @@ class InterpreterState:
     def max_script_element_size(self):
         if self.is_utxo_after_genesis:
             # No limit.  However, effectively limited by max_script_size.
-            return (1 << 64) - 1
+            return UINT_MAX
         return self.MAX_SCRIPT_ELEMENT_SIZE_BEFORE_GENESIS
 
     @cachedproperty
@@ -812,7 +812,7 @@ def evaluate(state, script):
 
         # Some op codes are disabled.  For pre-genesis UTXOs these were an error in
         # unevaluated branches; for post-genesis UTXOs only if evaluated.
-        if op in disabled_opcodes and (execute or not state.is_utxo_after_genesis):
+        if op in {OP_2MUL, OP_2DIV} and (execute or not state.is_utxo_after_genesis):
             raise DisabledOpcode(f'{Ops(op).name} is disabled')
 
         if execute and item is not None:
@@ -824,7 +824,7 @@ def evaluate(state, script):
             #
 
             # Post-genesis UTXOs permit OP_VER in unexecuted branches
-            if op in invalid_branching_opcodes and state.is_utxo_after_genesis and not execute:
+            if op in {OP_VERNOTIF, OP_VERIF} and state.is_utxo_after_genesis and not execute:
                 pass
             else:
                 raise InvalidOpcode('invalid opcode: {op}')
