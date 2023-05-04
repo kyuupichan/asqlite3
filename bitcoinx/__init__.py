@@ -1,4 +1,5 @@
 from .address import *
+from .async_ import *
 from .aes import *
 from .base58 import *
 from .bip32 import *
@@ -16,12 +17,22 @@ from .signature import *
 from .tx import *
 from .work import *
 
+try:
+    from .curio import *
+    CURIO = True
+    curio_all = curio.__all__
+except ImportError:
+    CURIO = False
+    curio_all = ()
+
+
 _version_str = '0.8'
 _version = tuple(int(part) for part in _version_str.split('.'))
 
 __all__ = sum((
     address.__all__,
     aes.__all__,
+    async_.__all__,
     base58.__all__,
     bip32.__all__,
     consts.__all__,
@@ -37,4 +48,5 @@ __all__ = sum((
     signature.__all__,
     tx.__all__,
     work.__all__,
-), ())
+    curio_all,
+), ('CURIO', ))

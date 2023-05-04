@@ -222,9 +222,10 @@ class Headers:
     in addition to the standard header attributes such as nonce and timestamp.
     '''
 
-    def __init__(self, network):
+    def __init__(self, network, storage=None):
         # mainnet, testnet etc.
         self.network = network
+        self.storage = storage
         # Map from chain to block hash
         self.tips = {}
         # Map from block hash to (chain, height) pair
@@ -313,22 +314,53 @@ class Headers:
         '''A cursor which indicates what headers are persisted.'''
         return {chain: chain.height for chain in self.tips}
 
-    @classmethod
-    def read_from_file(cls, file_name, network, check_work=False):
-        '''Read headers from a file.  Return a (Headers, cursor) pair.'''
-        headers = cls(network)
-        with open(file_name, 'rb') as f:
-            raw_headers = f.read()
-        for raw_header in chunks(raw_headers, 80):
-            headers.connect(raw_header, check_work)
-        return headers, headers.cursor()
+    async def connect_many(self, raw_headers, check_work=False):
+        '''Connect a set of concatenated raw headers.   Return a cusor.'''
+        def connect_many(raw_headers, check_work):
+            connect = self.connect
+            for raw_header in chunks(raw_headers, 80):
+                connect(raw_header, check_work)
+            return self.cursor()
 
-    def write_to_file(self, file_name, cursor):
-        '''Append headers added after the cursor to the file.  Return an updated cusor.'''
-        with open(file_name, 'ab') as f:
-            for chain in sorted(self.chains()):
-                f.write(chain.unpersisted_headers(cursor.get(chain, chain.first_height - 1)))
-        return self.cursor()
+        return await async_framework.run_in_thread(connect_many, raw_headers, check_work)
+
+    def unpersisted_headers(self, cursor):
+        return b''.join(
+            chain.unpersisted_headers(cursor.get(chain, chain.first_height - 1))
+            for chain in self.chains()
+        )
+
+
+class NetworkHeaders:
+    '''Manages headers for several networks at once.'''
+
+    def __init__(self):
+        # Network -> (Headers, storage, cursor) triple
+        self.headers = {}
+
+    def __getitem__(self, network):
+        headers, _, _ = self.headers[network]
+        return headers
+
+    async def read(self, network, storage, check_work=False):
+        raw_headers = await storage.read_all()
+        headers = Headers(network)
+        cursor = await headers.connect_many(raw_headers)
+        self.headers[network] = (headers, storage, cursor)
+        return headers
+
+    async def flush(self):
+        for network, (headers, storage, old_cursor) in self.headers.items():
+            cursor = headers.cursor()
+            if cursor != old_cursor:
+                raw_headers = headers.unpersisted_headers(old_cursor)
+                await storage.append(raw_headers)
+                self.headers[network] = (headers, storage, cursor)
+
+    async def flush_regularly(self, secs):
+        while True:
+            await async_framework.sleep(secs)
+            await self.flush_all()
 
 
 ##########
