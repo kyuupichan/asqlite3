@@ -264,3 +264,138 @@ class BUMP:
             raise MerkleError('all hashes to prove must be present') from None
 
         return cls(list(levels(tx_hashes, offsets)))
+
+
+class BUMP74:
+    '''BSV Unified Merkle Path.'''
+
+    def __init__(self, path):
+        '''path should be an iterable, each entry being a dictionary mapping offsets to hashes.
+
+        The levels in the path range from the broadest level of the tree to the narrowest,
+        ending when the tree has width <=2.  The last tx in the block is always present in
+        the first level..
+        '''
+        self.root, self.path = validate_path(path)
+
+    def __eq__(self, other):
+        if not isinstance(other, BUMP74):
+            raise TypeError('other must be of type BUMP74')
+        return (self.root == other.root and
+                self.tx_count == other.tx_count and
+                self.path == other.path)
+
+    def tx_hashes(self):
+        '''Returns a map of transaction_hash -> pos_in_block proven by this BUMP.'''
+        return {tx_hash: offset for offset, tx_hash in self.path[0].items()}
+
+    def merge(self, other):
+        '''Return a new BUMP representing the merger of this one with another.'''
+        if not isinstance(other, BUMP):
+            raise TypeError('other must be a BUMP')
+        if self.root != other.root or self.tx_count != other.tx_count:
+            raise MerkleError('cannot merge with a BUMP of a different block')
+
+        def merge_level(lhs, rhs):
+            result = lhs.copy()
+            result.update(rhs)
+            return result
+
+        # Return a new BUMP from the merged paths
+        return BUMP([merge_level(lhs, rhs) for lhs, rhs in zip(self.path, other.path)])
+
+    def to_bytes(self, height):
+        '''Return the bump in binary format.'''
+        def parts():
+            yield pack_varint(height)
+            for level in self.path:
+                yield pack_varint(len(level))
+                for offset, hash_ in level.items():
+                    yield pack_varint(offset)
+                    yield hash_
+
+        return b''.join(parts())
+
+    def to_json(self, height):
+        return json.dumps({
+            'blockHeight': height,
+            'path': [
+                [
+                    {
+                        'offset': offset,
+                        'hash': hash_to_hex_str(hash_),
+                    }
+                    for offset, hash_ in level.items()
+                ]
+                for level in self.path
+            ]
+        })
+
+    @classmethod
+    def from_json(cls, text):
+        data = json.loads(text)
+        height = data['blockHeight']
+        path = data['path']
+        path = [
+            level_map([(leaf['offset'], hex_str_to_hash(leaf['hash'])) for leaf in level])
+            for level in path
+        ]
+        return height, cls(path)
+
+    @classmethod
+    def from_bytes(cls, raw):
+        '''Returns a (height, bump) pair.'''
+        read = BytesIO(raw).read
+        result = cls.read(read)
+        if read(1) != b'':
+            raise PackingError('excess bytes in raw data')
+        return result
+
+    @classmethod
+    def read(cls, read):
+        '''Returns a (height, bump) pair.'''
+        def read_level_map(read):
+            return level_map([(read_varint(read), read(32)) for _ in range(read_varint(read))])
+
+        try:
+            height = read_varint(read)
+            level = read_level_map(read)
+            tx_count = max(level.keys()) + 1
+
+            path = [level]
+            path.extend(read_level_map(read) for _ in range(merkle_path_length(tx_count) - 1))
+
+            if path[-1] and any(len(hash_) != 32 for hash_ in path[-1].values()):
+                raise PackingError('hashes have length 32 bytes')
+        except PackingError:
+            raise PackingError('truncated stream reading BUMP') from None
+
+        return height, cls(path)
+
+    @classmethod
+    def create(cls, tx_hashes, hashes_to_prove):
+        def levels(hashes, offsets):
+            is_first = True
+            while True:
+                level, offsets = calc_level(hashes, offsets, is_first)
+                yield level
+                if len(hashes) <= 2:
+                    return
+                hashes = list(next_level(hashes))
+                is_first = False
+
+        if not tx_hashes:
+            raise MerkleError('tx_hashes cannot be empty')
+
+        offset_map = {tx_hash: offset for offset, tx_hash in enumerate(tx_hashes)}
+        if len(offset_map) != len(tx_hashes):
+            raise MerkleError('duplicate transaction hashes')
+
+        try:
+            offsets = set((offset_map[hash_to_prove] for hash_to_prove in hashes_to_prove))
+            # Always include the last transaction
+            offsets.add(len(tx_hashes) - 1)
+        except KeyError:
+            raise MerkleError('all hashes to prove must be present') from None
+
+        return cls(list(levels(tx_hashes, offsets)))
