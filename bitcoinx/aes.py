@@ -40,5 +40,8 @@ def aes_encrypt_with_iv(key, iv, data):
 
 def aes_decrypt_with_iv(key, iv, data):
     cipher = AES.new(key, AES.MODE_CBC, iv)
-    data = cipher.decrypt(data)
+    try:
+        data = cipher.decrypt(data)
+    except ValueError:
+        raise DecryptionError('corrupt ciphertext') from None
     return _strip_PKCS7_padding(data)
