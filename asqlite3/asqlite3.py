@@ -97,8 +97,7 @@ class Connection(threading.Thread):
 
     def __init__(self, database, **kwargs):
         super().__init__()
-        self._database = database
-        self._kwargs = kwargs
+        self._connect = partial(sqlite3.connect, database, **kwargs)
         self._jobs = queue.Queue()
         self._conn = None
         self._loop = None
@@ -140,7 +139,7 @@ class Connection(threading.Thread):
     async def __aenter__(self):
         self._loop = asyncio.get_running_loop()
         self.start()
-        self._conn = await self._schedule(partial(sqlite3.connect, self._database, **self._kwargs))
+        self._conn = await self._schedule(self._connect)
         return self
 
     async def __aexit__(self, typ, val, tb):
