@@ -107,22 +107,23 @@ class Connection(threading.Thread):
         self._jobs.put((future, job))
         return future
 
-    async def main_loop(self):
-        call_soon = self._loop.call_soon_threadsafe
-        while True:
-            item = self._jobs.get()
-            if item is None:
-                break
-            future, job = item
-            try:
-                call_soon(future.set_result, job())
-            except BaseException as e:
-                call_soon(future.set_exception, e)
+    def run(self):
+        async def main_loop():
+            call_soon = self._loop.call_soon_threadsafe
+            while True:
+                item = self._jobs.get()
+                if item is None:
+                    break
+                future, job = item
+                try:
+                    call_soon(future.set_result, job())
+                except BaseException as e:
+                    call_soon(future.set_exception, e)
+
+        asyncio.run(main_loop())
 
     async def close(self):
-        future = self._schedule(lambda: True)
-        self._jobs.put(None)
-        await future
+        await self._schedule(partial(self._jobs.put, None))
         self._conn = None
 
     async def cursor(self):
@@ -131,10 +132,6 @@ class Connection(threading.Thread):
     async def execute(self, *args, **kwargs):
         cursor = await self._schedule(partial(self._conn.execute, *args, **kwargs))
         return Cursor(self._schedule, cursor)
-
-    def run(self):
-        # Run main_loop in this thread
-        asyncio.run(self.main_loop())
 
     async def __aenter__(self):
         self._loop = asyncio.get_running_loop()
