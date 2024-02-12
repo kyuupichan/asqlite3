@@ -97,48 +97,40 @@ class Connection(threading.Thread):
 
     def __init__(self, database, **kwargs):
         super().__init__()
-        self.database = database
-        self.kwargs = kwargs
-        self.jobs = queue.Queue()
-        self.done_event = asyncio.Event()
-        self.conn = None
+        self._database = database
+        self._kwargs = kwargs
+        self._jobs = queue.Queue()
+        self._conn = None
+        self._loop = None
 
     def _schedule(self, job):
-        future = self.loop.create_future()
-        self.jobs.put((future, job))
+        future = self._loop.create_future()
+        self._jobs.put((future, job))
         return future
 
     async def main_loop(self):
-        # Runs in the database thread
-        self.conn = conn = sqlite3.connect(self.database, **self.kwargs)
-        try:
-            while True:
-                item = self.jobs.get()
-                if item is None:
-                    break
-                future, job = item
-                try:
-                    self.loop.call_soon_threadsafe(future.set_result, job())
-                except BaseException as e:
-                    self.loop.call_soon_threadsafe(future.set_exception, e)
-        finally:
-            self.conn = None
-            conn.close()
-            self.loop.call_soon_threadsafe(self.done_event.set)
+        call_soon = self._loop.call_soon_threadsafe
+        while True:
+            item = self._jobs.get()
+            if item is None:
+                break
+            future, job = item
+            try:
+                call_soon(future.set_result, job())
+            except BaseException as e:
+                call_soon(future.set_exception, e)
 
     async def close(self):
-        self.jobs.put(None)
-        await self.done_event.wait()
+        future = self._schedule(lambda: True)
+        self._jobs.put(None)
+        await future
+        self._conn = None
 
     async def cursor(self):
-        return Cursor(self._schedule, await self._schedule(self.conn.cursor))
+        return Cursor(self._schedule, await self._schedule(self._conn.cursor))
 
-    # @async_wrap('commit')
-    # @async_wrap('rollback')
-    # @async_wrap('executemany')
-    # @async_wrap('executescript')
     async def execute(self, *args, **kwargs):
-        cursor = await self._schedule(partial(self.conn.execute, *args, **kwargs))
+        cursor = await self._schedule(partial(self._conn.execute, *args, **kwargs))
         return Cursor(self._schedule, cursor)
 
     def run(self):
@@ -146,9 +138,9 @@ class Connection(threading.Thread):
         asyncio.run(self.main_loop())
 
     async def __aenter__(self):
-        self.loop = asyncio.get_running_loop()
+        self._loop = asyncio.get_running_loop()
         self.start()
-        await self._schedule(lambda : 0)
+        self._conn = await self._schedule(partial(sqlite3.connect, self._database, **self._kwargs))
         return self
 
     async def __aexit__(self, typ, val, tb):

@@ -197,6 +197,14 @@ class TestCursor:
 
         asyncio.run(test())
 
+    def test_connection(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.cursor()
+                assert cursor.connection is cursor._cursor.connection
+
+        asyncio.run(test())
+
 
 class TestConnection:
 
