@@ -476,6 +476,23 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_set_trace_callback(self):
+        stmts = []
+        def trace_callback(stmt):
+            stmts.append(stmt)
+
+        async def test():
+            async with connect(':memory:') as conn:
+                assert await conn.set_trace_callback(trace_callback) is None
+                sql = 'CREATE TABLE Z(x, y, z)'
+                await conn.execute(sql)
+                assert stmts == [sql]
+                assert await conn.set_trace_callback(None) is None
+                await conn.execute('CREATE TABLE Y(x, y, z)')
+                assert stmts == [sql]
+
+        asyncio.run(test())
+
     def test_isolation_level(self):
         async def test():
             async with connect(':memory:') as conn:

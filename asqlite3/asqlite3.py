@@ -189,8 +189,11 @@ class Connection(threading.Thread):
     async def set_progress_handler(self, handler, n):
         await self._schedule(partial(self._conn.set_progress_handler, handler, n))
 
+    async def set_trace_callback(self, trace_callback):
+        await self._schedule(partial(self._conn.set_trace_callback, trace_callback))
+
     # TODO: blobopen, create_window_function, interrupt,
-    # set_trace_callback, enable_load_extension, load_extension, iterdump, backup, getlimit,
+    # enable_load_extension, load_extension, iterdump, backup, getlimit,
     # setlimit, getconfig, setconfig, serialize, deserialize, autocommit,
 
     @property
