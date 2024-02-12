@@ -28,7 +28,6 @@ jobs:
     inputs:
       codeCoverageTool: cobertura
       summaryFileLocation: coverage.xml
-  - bash: |
-      pycodestyle --max-line-length=100 asqlite3/*.py
+  - bash: ./pycodestyle
     condition: succeededOrFailed()
     displayName: 'Validate code style'
