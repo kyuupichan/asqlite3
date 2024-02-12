@@ -133,6 +133,22 @@ class TestCursor:
 
         asyncio.run(test())
 
+    def test_setinputsizes(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.execute('SELECT 1, 5')
+                await cursor.setinputsizes([2])
+
+        asyncio.run(test())
+
+    def test_setoutputsize(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.execute('SELECT 1, 5')
+                await cursor.setoutputsize(12, 0)
+
+        asyncio.run(test())
+
     def test_arraysize(self):
         async def test():
             async with connect(':memory:') as conn:

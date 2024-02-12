@@ -59,6 +59,12 @@ class Cursor:
     async def fetchone(self):
         return await self._schedule(self._cursor.fetchone)
 
+    async def setinputsizes(self, sizes):
+        return await self._schedule(partial(self._cursor.setinputsizes, sizes))
+
+    async def setoutputsize(self, size, column=None):
+        return await self._schedule(partial(self._cursor.setoutputsize, size, column))
+
     @property
     def arraysize(self):
         return self._cursor.arraysize
