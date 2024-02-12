@@ -179,6 +179,26 @@ class Connection(threading.Thread):
     def in_transaction(self):
         return self._conn.in_transaction
 
+    @property
+    def row_factory(self):
+        return self._conn.row_factory
+
+    @row_factory.setter
+    def row_factory(self, value):
+        self._conn.row_factory = value
+
+    @property
+    def text_factory(self):
+        return self._conn.text_factory
+
+    @text_factory.setter
+    def text_factory(self, value):
+        self._conn.text_factory = value
+
+    @property
+    def total_changes(self):
+        return self._conn.total_changes
+
 
 
 connect = Connection

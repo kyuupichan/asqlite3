@@ -370,3 +370,36 @@ class TestConnection:
                 assert conn.in_transaction
 
         asyncio.run(test())
+
+    def test_row_factory(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                assert conn.row_factory is None
+                assert conn._conn.row_factory is None
+                conn.row_factory = sqlite3.Row
+                assert conn.row_factory is sqlite3.Row
+                assert conn._conn.row_factory is sqlite3.Row
+
+        asyncio.run(test())
+
+    def test_text_factory(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                assert conn.text_factory is str
+                assert conn._conn.text_factory is str
+                conn.text_factory = bytes
+                assert conn.text_factory is bytes
+                assert conn._conn.text_factory is bytes
+
+        asyncio.run(test())
+
+    def test_total_changes(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                assert conn.total_changes == 0
+                await conn.execute('CREATE TABLE T(x)')
+                await conn.executemany('INSERT INTO T VALUES(?)',
+                                       ((n, ) for n in range(100)))
+                assert conn.total_changes == 100
+
+        asyncio.run(test())
