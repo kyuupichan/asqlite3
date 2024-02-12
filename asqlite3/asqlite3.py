@@ -183,10 +183,15 @@ class Connection(threading.Thread):
     async def create_collation(self, name, callable, /):
         await self._schedule(partial(self._conn.create_collation, name, callable))
 
-    # TODO: blobopen, create_window_function, interrupt, set_authorizer, set_progress_handler,
+    async def set_authorizer(self, authorizer_callback):
+        await self._schedule(partial(self._conn.set_authorizer, authorizer_callback))
+
+    async def set_progress_handler(self, handler, n):
+        await self._schedule(partial(self._conn.set_progress_handler, handler, n))
+
+    # TODO: blobopen, create_window_function, interrupt,
     # set_trace_callback, enable_load_extension, load_extension, iterdump, backup, getlimit,
-    # setlimit, getconfig, setconfig, serialize, deserialize, autocommit, setinputsizes,
-    # setoutputsize,
+    # setlimit, getconfig, setconfig, serialize, deserialize, autocommit,
 
     @property
     def isolation_level(self):

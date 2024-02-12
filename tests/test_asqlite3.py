@@ -437,6 +437,45 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_set_authorizer(self):
+        def authorizer(action, arg1, arg2, db_name, trigger_name):
+            if action == SQLITE_CREATE_TABLE and arg1 == 'T':
+                return SQLITE_DENY
+            return SQLITE_OK
+
+        with sqlite3.connect(':memory:') as conn:
+            assert conn.set_authorizer(authorizer) is None
+            with pytest.raises(DatabaseError) as e:
+                conn.execute('CREATE TABLE T(x)')
+            assert str(e.value) == "not authorized"
+
+        async def test():
+            async with connect(':memory:') as conn:
+                assert await conn.set_authorizer(authorizer) is None
+                await conn.execute('CREATE TABLE Z(x)')
+                with pytest.raises(DatabaseError) as e:
+                    await conn.execute('CREATE TABLE T(x)')
+                assert str(e.value) == "not authorized"
+                assert await conn.set_authorizer(None) is None
+                await conn.execute('CREATE TABLE T(x)')
+
+        asyncio.run(test())
+
+    def test_set_progress_handler(self):
+        def progress():
+            return SQLITE_DENY
+
+        async def test():
+            async with connect(':memory:') as conn:
+                assert await conn.set_progress_handler(progress, 2) is None
+                with pytest.raises(OperationalError) as e:
+                    await conn.execute('CREATE TABLE Z(x, y, z)')
+                assert str(e.value) == "interrupted"
+                assert await conn.set_progress_handler(None, 2) is None
+                await conn.execute('CREATE TABLE Z(x, y, z)')
+
+        asyncio.run(test())
+
     def test_isolation_level(self):
         async def test():
             async with connect(':memory:') as conn:
@@ -506,6 +545,19 @@ def test_module_constants():
     assert paramstyle == "qmark"
     assert threadsafety in (0, 1, 3)
     assert PrepareProtocol
+
+    import asqlite3
+    for symbol in (
+            '''SQLITE_CREATE_INDEX SQLITE_CREATE_TABLE SQLITE_CREATE_TEMP_INDEX
+            SQLITE_CREATE_TEMP_TABLE SQLITE_CREATE_TEMP_VIEW SQLITE_CREATE_TRIGGER
+            SQLITE_CREATE_VIEW SQLITE_DELETE SQLITE_DROP_INDEX SQLITE_DROP_TABLE
+            SQLITE_DROP_TABLE SQLITE_DROP_TEMP_INDEX SQLITE_DROP_TEMP_TABLE
+            SQLITE_DROP_TEMP_TRIGGER SQLITE_DROP_TEMP_VIEW SQLITE_DROP_TRIGGER
+            SQLITE_DROP_TEMP_VIEW SQLITE_DROP_TRIGGER SQLITE_DROP_VIEW SQLITE_INSERT SQLITE_PRAGMA
+            SQLITE_READ SQLITE_SELECT SQLITE_TRANSACTION SQLITE_UPDATE SQLITE_ATTACH SQLITE_DETACH
+            SQLITE_ALTER_TABLE SQLITE_REINDEX SQLITE_ANALYZE SQLITE_CREATE_VTABLE
+            SQLITE_DROP_VTABLE SQLITE_FUNCTION SQLITE_SAVEPOINT SQLITE_RECURSIVE''').split():
+        assert isinstance(getattr(asqlite3, symbol), int)
 
     if sys.version_info >= (3, 11):
         assert Blob
