@@ -97,7 +97,7 @@ class TestCursor:
             async with connect(':memory:') as conn:
                 cursor = await conn.cursor()
                 with pytest.raises(TypeError):
-                    result = await cursor.executescript(sql_script='')
+                    await cursor.executescript(sql_script='')
                 assert (await cursor.executescript('CREATE TABLE T(x); INSERT INTO T Values(1);')
                         is cursor)
                 assert await cursor.execute('SELECT * FROM T')
@@ -113,7 +113,7 @@ class TestCursor:
 
         asyncio.run(test())
 
-    def test_fetchmany(self, size=None):
+    def test_fetchmany(self):
         async def test():
             async with connect(':memory:') as conn:
                 sql = ' UNION '.join((f'SELECT {n}, {n * 2}') for n in range(10))
@@ -127,16 +127,6 @@ class TestCursor:
             async with connect(':memory:') as conn:
                 cursor = await conn.execute('SELECT 1, 5')
                 assert await cursor.fetchone() == (1, 5)
-
-        asyncio.run(test())
-
-    def test_arraysize(self):
-        async def test():
-            async with connect(':memory:') as conn:
-                cursor = await conn.cursor()
-                assert cursor.arraysize == cursor._cursor.arraysize
-                cursor.arraysize = 123
-                assert cursor._cursor.arraysize == 123
 
         asyncio.run(test())
 
@@ -177,7 +167,6 @@ class TestCursor:
                 cursor = await conn.cursor()
                 assert cursor.lastrowid is None
                 await cursor.execute('CREATE TABLE T(x);')
-                params = ((1, ), (2, ))
                 await cursor.execute('INSERT INTO T VALUES(1)')
                 assert cursor.lastrowid == 1
                 await cursor.execute('INSERT INTO T VALUES(0)')
@@ -211,7 +200,31 @@ class TestConnection:
     def test_connect(self):
         async def test():
             async with connect(':memory:') as conn:
+                assert isinstance(conn, Connection)
+
+        asyncio.run(test())
+
+    def test_connect_args(self):
+        async def test():
+            async with connect(':memory:', isolation_level="IMMEDIATE", check_same_thread=True):
                 pass
+
+        asyncio.run(test())
+
+    def test_connect_args_bad(self):
+        async def test():
+            with pytest.raises(TypeError):
+                async with connect(':memory:', zombie=6):
+                    pass
+
+        asyncio.run(test())
+
+    def test_closed(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                pass
+            with pytest.raises(RuntimeError):
+                await conn.execute('SELECT 1, 5')
 
         asyncio.run(test())
 

@@ -99,10 +99,13 @@ class Connection(threading.Thread):
         super().__init__()
         self._connect = partial(sqlite3.connect, database, **kwargs)
         self._jobs = queue.Queue()
+        self._closed = False
         self._conn = None
         self._loop = None
 
     def _schedule(self, job):
+        if self._closed:
+            raise RuntimeError('DB connection is closed')
         future = self._loop.create_future()
         self._jobs.put((future, job))
         return future
@@ -119,12 +122,16 @@ class Connection(threading.Thread):
                     call_soon(future.set_result, job())
                 except BaseException as e:
                     call_soon(future.set_exception, e)
+                    if not self._conn:  # connection failed?
+                        break
 
         asyncio.run(main_loop())
 
     async def close(self):
-        await self._schedule(partial(self._jobs.put, None))
-        self._conn = None
+        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
+        self._closed = True
+        self._jobs.put(None)
+        self.join()
 
     async def cursor(self):
         return Cursor(self._schedule, await self._schedule(self._conn.cursor))
@@ -136,10 +143,12 @@ class Connection(threading.Thread):
     async def __aenter__(self):
         self._loop = asyncio.get_running_loop()
         self.start()
+        # Connections, like all DB operations, need to happen from the thread.  Waiting
+        # here ensures a connection error propagates its exception in the main thread.
         self._conn = await self._schedule(self._connect)
         return self
 
-    async def __aexit__(self, typ, val, tb):
+    async def __aexit__(self, *args):
         await self.close()
 
 
