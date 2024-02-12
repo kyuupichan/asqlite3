@@ -1,1 +1,1 @@
-pycodestyle --max-line-length=100 bitcoinx/*.py
+pycodestyle --max-line-length=100 --ignore=E402 asqlite3/*.py
