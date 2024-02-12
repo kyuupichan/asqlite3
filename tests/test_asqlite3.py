@@ -1,5 +1,6 @@
 import asyncio
 import sqlite3
+import sys
 import time
 from functools import partial
 
@@ -481,3 +482,30 @@ class TestConnection:
                 assert conn.total_changes == 100
 
         asyncio.run(test())
+
+
+def test_module_constants():
+    assert not complete_statement('SELECT')
+    assert complete_statement('SELECT 1;')
+    assert enable_callback_tracebacks
+    assert register_adapter
+    assert register_converter
+    assert isinstance(PARSE_COLNAMES, int)
+    assert isinstance(PARSE_DECLTYPES, int)
+    assert isinstance(SQLITE_OK, int)
+    assert isinstance(SQLITE_DENY, int)
+    assert isinstance(SQLITE_IGNORE, int)
+    assert apilevel == "2.0"
+    assert paramstyle == "qmark"
+    assert threadsafety in (0, 1, 3)
+    assert PrepareProtocol
+
+    if sys.version_info >= (3, 11):
+        assert Blob
+
+    if sys.version_info >= (3, 12):
+        assert LEGACY_TRANSACTION_CONTROL
+
+    if sys.version_info < (3, 14):
+        assert isinstance(version, str)
+        assert isinstance(version_info, tuple)

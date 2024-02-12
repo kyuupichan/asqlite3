@@ -177,6 +177,11 @@ class Connection(threading.Thread):
     async def create_collation(self, name, callable, /):
         await self._schedule(partial(self._conn.create_collation, name, callable))
 
+    # TODO: blobopen, create_window_function, interrupt, set_authorizer, set_progress_handler,
+    # set_trace_callback, enable_load_extension, load_extension, iterdump, backup, getlimit,
+    # setlimit, getconfig, setconfig, serialize, deserialize, autocommit, setinputsizes,
+    # setoutputsize,
+
     @property
     def isolation_level(self):
         return self._conn.isolation_level
@@ -208,7 +213,6 @@ class Connection(threading.Thread):
     @property
     def total_changes(self):
         return self._conn.total_changes
-
 
 
 connect = Connection
