@@ -94,6 +94,7 @@ class Cursor:
 
 
 class Connection(threading.Thread):
+    '''An asynchronous wrapper around an sqlite3.Connection object.'''
 
     def __init__(self, database, **kwargs):
         super().__init__()
@@ -127,19 +128,6 @@ class Connection(threading.Thread):
 
         asyncio.run(main_loop())
 
-    async def close(self):
-        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
-        self._closed = True
-        self._jobs.put(None)
-        self.join()
-
-    async def cursor(self):
-        return Cursor(self._schedule, await self._schedule(self._conn.cursor))
-
-    async def execute(self, *args, **kwargs):
-        cursor = await self._schedule(partial(self._conn.execute, *args, **kwargs))
-        return Cursor(self._schedule, cursor)
-
     async def __aenter__(self):
         self._loop = asyncio.get_running_loop()
         self.start()
@@ -150,6 +138,39 @@ class Connection(threading.Thread):
 
     async def __aexit__(self, *args):
         await self.close()
+
+    async def close(self):
+        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
+        self._schedule(self._conn.close)
+        self._closed = True
+        self._jobs.put(None)
+        self.join()
+
+    async def cursor(self, factory=Cursor):
+        return factory(self._schedule, await self._schedule(self._conn.cursor))
+
+    async def commit(self):
+        await self._schedule(self._conn.commit)
+
+    async def rollback(self):
+        await self._schedule(self._conn.rollback)
+
+    async def execute(self, *args, **kwargs):
+        cursor = await self._schedule(partial(self._conn.execute, *args, **kwargs))
+        return Cursor(self._schedule, cursor)
+
+    @property
+    def isolation_level(self):
+        return self._conn.isolation_level
+
+    @isolation_level.setter
+    def isolation_level(self, value):
+        self._conn.isolation_level = value
+
+    @property
+    def in_transaction(self):
+        return self._conn.in_transaction
+
 
 
 connect = Connection

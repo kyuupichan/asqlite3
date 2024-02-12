@@ -1,5 +1,7 @@
 import asyncio
 import sqlite3
+import time
+from functools import partial
 
 import pytest
 
@@ -233,5 +235,79 @@ class TestConnection:
             async with connect(':memory:') as conn:
                 cursor = await conn.execute('SELECT 1, 5')
                 assert await cursor.fetchone() == (1, 5)
+
+        asyncio.run(test())
+
+    def test_close(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                conn._schedule(partial(time.sleep, 0.02))
+            assert conn._closed
+            assert conn._jobs.empty()
+
+        asyncio.run(test())
+
+    def test_cursor(self):
+        class MyCursor(Cursor):
+            pass
+
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.cursor(factory=MyCursor)
+                assert isinstance(cursor, MyCursor)
+
+        asyncio.run(test())
+
+    def test_isolation_level(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                assert conn.isolation_level is conn._conn.isolation_level
+                conn.isolation_level = 'IMMEDIATE'
+                assert conn._conn.isolation_level == 'IMMEDIATE'
+                conn.isolation_level = 'DEFERRED'
+                assert conn._conn.isolation_level == 'DEFERRED'
+
+        asyncio.run(test())
+
+    def test_in_transaction(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                assert not conn.in_transaction
+                await conn.execute('BEGIN')
+                assert conn.in_transaction
+
+        asyncio.run(test())
+
+    def test_commit(self):
+        with sqlite3.connect(':memory:') as conn:
+            conn.execute('BEGIN')
+            conn.execute('CREATE TABLE T(x)')
+            assert conn.commit() is None
+            assert conn.execute('SELECT * from T').fetchall() == []
+
+        async def test():
+            async with connect(':memory:') as conn:
+                await conn.execute('BEGIN')
+                await conn.execute('CREATE TABLE T(x)')
+                assert await conn.commit() is None
+                assert await (await conn.execute('SELECT * from T')).fetchall() == []
+
+        asyncio.run(test())
+
+    def test_commit(self):
+        with sqlite3.connect(':memory:') as conn:
+            conn.execute('BEGIN')
+            conn.execute('CREATE TABLE T(x)')
+            assert conn.rollback() is None
+            with pytest.raises(sqlite3.OperationalError):
+                conn.execute('SELECT * from T')
+
+        async def test():
+            async with connect(':memory:') as conn:
+                await conn.execute('BEGIN')
+                await conn.execute('CREATE TABLE T(x)')
+                assert await conn.rollback() is None
+                with pytest.raises(sqlite3.OperationalError):
+                    await conn.execute('SELECT * from T')
 
         asyncio.run(test())
