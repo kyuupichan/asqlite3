@@ -198,7 +198,32 @@ class Connection(threading.Thread):
     async def load_extension(self, path):
         await self._schedule(partial(self._conn.load_extension, path))
 
-    # TODO: blobopen, create_window_function, interrupt, iterdump, backup, getlimit,
+    async def iterdump(self):
+        # Need to read the lines from iterdump in the DB thread
+        def enqueue_lines(lines):
+            for line in self._conn.iterdump():
+                lines.put(line)
+            lines.put(None)
+
+        # And to return the lines from the caller's thread
+        async def read_lines(lines):
+            while True:
+                line = lines.get()
+                if line is None:
+                    break
+                yield line
+
+        lines = queue.Queue(maxsize=100)
+        self._schedule(partial(enqueue_lines, lines))
+        return read_lines(lines)
+
+    async def backup(self, target, *, pages=-1, progress=None, name="main", sleep=0.250):
+        if isinstance(target, Connection):
+            target = target._conn
+        await self._schedule(partial(self._conn.backup, target, pages=pages, progress=progress,
+                                     name=name, sleep=sleep))
+
+    # TODO: blobopen, create_window_function, interrupt, getlimit,
     # setlimit, getconfig, setconfig, serialize, deserialize, autocommit,
 
     @property

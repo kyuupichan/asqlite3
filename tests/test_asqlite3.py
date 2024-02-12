@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sqlite3
 import sys
 import time
@@ -6,6 +7,7 @@ from functools import partial
 
 import pytest
 
+import asqlite3
 from asqlite3 import *
 
 
@@ -438,7 +440,7 @@ class TestConnection:
         asyncio.run(test())
 
     def test_set_authorizer(self):
-        def authorizer(action, arg1, arg2, db_name, trigger_name):
+        def authorizer(action, arg1, _arg2, _db_name, _trigger_name):
             if action == SQLITE_CREATE_TABLE and arg1 == 'T':
                 return SQLITE_DENY
             return SQLITE_OK
@@ -507,6 +509,39 @@ class TestConnection:
                 with pytest.raises(OperationalError) as e:
                     assert await conn.load_extension('foo') is None
                 assert 'no such file' in str(e.value)
+
+        asyncio.run(test())
+
+    def test_iterdump(self):
+        lines = []
+        with sqlite3.connect(':memory:') as conn:
+            sql = 'CREATE TABLE Z(x, y, z);'
+            conn.execute(sql)
+            for line in conn.iterdump():
+                lines.append(line)
+            assert len(lines) == 3 and lines[1] == sql
+
+        async def test():
+            async with connect(':memory:') as conn:
+                await conn.execute(sql)
+                z = await conn.iterdump()
+                assert lines == [line async for line in z]
+
+        asyncio.run(test())
+
+    def test_backup(self, tmpdir):
+        with sqlite3.connect(':memory:') as conn:
+            sql = 'CREATE TABLE Z(x, y, z);'
+            conn.execute(sql)
+            with sqlite3.connect(os.path.join(tmpdir, 'dest.db')) as dest:
+                assert conn.backup(dest) is None
+
+        async def test():
+            async with connect(':memory:') as conn:
+                sql = 'CREATE TABLE Z(x, y, z);'
+                await conn.execute(sql)
+                async with connect(os.path.join(tmpdir, 'dest2.db')) as dest:
+                    assert await conn.backup(dest) is None
 
         asyncio.run(test())
 
@@ -580,7 +615,6 @@ def test_module_constants():
     assert threadsafety in (0, 1, 3)
     assert PrepareProtocol
 
-    import asqlite3
     for symbol in (
             '''SQLITE_CREATE_INDEX SQLITE_CREATE_TABLE SQLITE_CREATE_TEMP_INDEX
             SQLITE_CREATE_TEMP_TABLE SQLITE_CREATE_TEMP_VIEW SQLITE_CREATE_TRIGGER
