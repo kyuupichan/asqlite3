@@ -130,8 +130,75 @@ class TestCursor:
 
         asyncio.run(test())
 
+    def test_arraysize(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.cursor()
+                assert cursor.arraysize == cursor._cursor.arraysize
+                cursor.arraysize = 123
+                assert cursor._cursor.arraysize == 123
 
-class TestConnector:
+        asyncio.run(test())
+
+    def test_arraysize(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.cursor()
+                assert cursor.arraysize == cursor._cursor.arraysize
+                cursor.arraysize = 123
+                assert cursor._cursor.arraysize == 123
+
+        asyncio.run(test())
+
+    def test_description(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.execute('SELECT 1, 5')
+                assert cursor.description == cursor._cursor.description
+
+        asyncio.run(test())
+
+    def test_rowcount(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.cursor()
+                assert cursor.rowcount == -1
+                await cursor.execute('CREATE TABLE T(x);')
+                assert cursor.rowcount == -1
+                params = ((1, ), (2, ))
+                assert await cursor.executemany('INSERT INTO T VALUES(?)', params) is cursor
+                assert cursor.rowcount == 2
+
+        asyncio.run(test())
+
+    def test_lastrowid(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.cursor()
+                assert cursor.lastrowid is None
+                await cursor.execute('CREATE TABLE T(x);')
+                params = ((1, ), (2, ))
+                await cursor.execute('INSERT INTO T VALUES(1)')
+                assert cursor.lastrowid == 1
+                await cursor.execute('INSERT INTO T VALUES(0)')
+                assert cursor.lastrowid == 2
+
+        asyncio.run(test())
+
+    def test_row_factory(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.cursor()
+                assert cursor.row_factory is None
+                assert cursor._cursor.row_factory is None
+                cursor.row_factory = sqlite3.Row
+                assert cursor.row_factory is sqlite3.Row
+                assert cursor._cursor.row_factory is sqlite3.Row
+
+        asyncio.run(test())
+
+
+class TestConnection:
 
     def test_connect(self):
         async def test():
