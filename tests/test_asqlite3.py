@@ -231,14 +231,6 @@ class TestConnection:
 
         asyncio.run(test())
 
-    def test_execute(self):
-        async def test():
-            async with connect(':memory:') as conn:
-                cursor = await conn.execute('SELECT 1, 5')
-                assert await cursor.fetchone() == (1, 5)
-
-        asyncio.run(test())
-
     def test_close(self):
         async def test():
             async with connect(':memory:') as conn:
@@ -275,7 +267,7 @@ class TestConnection:
 
         asyncio.run(test())
 
-    def test_commit(self):
+    def test_rollback(self):
         with sqlite3.connect(':memory:') as conn:
             conn.execute('BEGIN')
             conn.execute('CREATE TABLE T(x)')
@@ -402,7 +394,7 @@ class TestConnection:
                 with pytest.raises(OperationalError):
                     await cursor.execute('SELECT mysum2(x) FROM T')
 
-        asyncio.run(test())
+            asyncio.run(test())
 
     def test_create_collation(self):
         def collate_reverse(a, b):

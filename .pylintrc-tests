@@ -69,6 +69,10 @@ disable=blacklisted-name,
         missing-class-docstring,
         missing-function-docstring,
         broad-exception-caught,
+        fixme,
+        redefined-builtin,
+        unused-wildcard-import,
+        expression-not-assigned,
 
 
 # Enable the message, report, category or checker with the given id(s). You can

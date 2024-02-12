@@ -1,0 +1,20 @@
+parameters:
+  onlyPullRequests: false
+
+steps:
+- script: |
+    python -m pip install pycodestyle pylint
+    python -m pip install coveralls coverage
+    python -m pip install pytest
+  displayName: Prepare general environment
+  condition: |
+    and(
+      succeeded(),
+      or(
+        eq(variables['Build.Reason'], 'PullRequest'),
+        eq(${{ parameters.onlyPullRequests }}, false)
+      )
+    )
+  enabled: true
+  continueOnError: false
+  failOnStderr: false
