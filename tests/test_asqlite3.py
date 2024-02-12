@@ -217,8 +217,7 @@ class TestConnection:
     def test_connect_args_bad(self):
         async def test():
             with pytest.raises(TypeError):
-                async with connect(':memory:', zombie=6):
-                    pass
+                await connect(':memory:', zombie=6)
 
         asyncio.run(test())
 
@@ -394,7 +393,7 @@ class TestConnection:
                 with pytest.raises(OperationalError):
                     await cursor.execute('SELECT mysum2(x) FROM T')
 
-            asyncio.run(test())
+        asyncio.run(test())
 
     def test_create_collation(self):
         def collate_reverse(a, b):
@@ -413,9 +412,9 @@ class TestConnection:
             async with connect(':memory:') as conn:
                 assert await conn.create_collation('reverse2', collate_reverse) is None
                 await conn.execute('CREATE TABLE T(x)')
-                await conn.executemany('INSERT INTO T VALUES(?)', (("a", ), ("b", )))
+                await conn.executemany('INSERT INTO T VALUES(?)', (("a", ), ("b", ), ("a", )))
                 cursor = await conn.execute('SELECT x FROM T ORDER BY x COLLATE reverse2')
-                assert await cursor.fetchall() == [('b', ), ('a', )]
+                assert await cursor.fetchall() == [('b', ), ('a', ), ('a', )]
                 assert await conn.create_collation('reverse2', None) is None
                 with pytest.raises(OperationalError):
                     await conn.execute('SELECT x FROM T ORDER BY x COLLATE reverse2')
