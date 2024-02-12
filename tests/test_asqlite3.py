@@ -82,7 +82,7 @@ class TestCursor:
                     await cursor.executemany('INSERT INTO T VALUES(?)', parameters=params)
                 assert await cursor.executemany('INSERT INTO T VALUES(?)', params) is cursor
                 assert await cursor.fetchall() == []
-                assert await cursor.execute('SELECT * FROM T')
+                assert await cursor.execute('SELECT * FROM T') is cursor
                 assert await cursor.fetchall() == list(params)
 
         asyncio.run(test())
@@ -258,26 +258,6 @@ class TestConnection:
 
         asyncio.run(test())
 
-    def test_isolation_level(self):
-        async def test():
-            async with connect(':memory:') as conn:
-                assert conn.isolation_level is conn._conn.isolation_level
-                conn.isolation_level = 'IMMEDIATE'
-                assert conn._conn.isolation_level == 'IMMEDIATE'
-                conn.isolation_level = 'DEFERRED'
-                assert conn._conn.isolation_level == 'DEFERRED'
-
-        asyncio.run(test())
-
-    def test_in_transaction(self):
-        async def test():
-            async with connect(':memory:') as conn:
-                assert not conn.in_transaction
-                await conn.execute('BEGIN')
-                assert conn.in_transaction
-
-        asyncio.run(test())
-
     def test_commit(self):
         with sqlite3.connect(':memory:') as conn:
             conn.execute('BEGIN')
@@ -309,5 +289,84 @@ class TestConnection:
                 assert await conn.rollback() is None
                 with pytest.raises(sqlite3.OperationalError):
                     await conn.execute('SELECT * from T')
+
+        asyncio.run(test())
+
+    def test_execute(self):
+        with sqlite3.connect(':memory:') as conn:
+            with pytest.raises(TypeError):
+                conn.execute('SELECT 1, 5', parameters=())
+            cursor = conn.execute('SELECT 1, 5', ())
+            assert isinstance(cursor, sqlite3.Cursor)
+            assert cursor.fetchone() == (1, 5)
+
+        async def test():
+            async with connect(':memory:') as conn:
+                with pytest.raises(TypeError):
+                    await conn.execute('SELECT 1, 5', parameters=())
+                cursor = await conn.execute('SELECT 1, 5', ())
+                assert isinstance(cursor, Cursor)
+                assert await cursor.fetchone() == (1, 5)
+
+        asyncio.run(test())
+
+    def test_executemany(self):
+        with sqlite3.connect(':memory:') as conn:
+            conn.execute('CREATE TABLE T(x);')
+            params = ((1, ), (2, ))
+            with pytest.raises(TypeError):
+                conn.executemany('INSERT INTO T VALUES(?)', parameters=params)
+            cursor = conn.executemany('INSERT INTO T VALUES(?)', params)
+            assert isinstance(cursor, sqlite3.Cursor)
+
+        async def test():
+            async with connect(':memory:') as conn:
+                await conn.execute('CREATE TABLE T(x);')
+                params = ((1, ), (2, ))
+                with pytest.raises(TypeError):
+                    await conn.executemany('INSERT INTO T VALUES(?)', parameters=params)
+                cursor = await conn.executemany('INSERT INTO T VALUES(?)', params)
+                assert isinstance(cursor, Cursor)
+                assert await cursor.fetchall() == []
+                cursor = await conn.execute('SELECT * FROM T')
+                assert await cursor.fetchall() == list(params)
+
+        asyncio.run(test())
+
+    def test_executescript(self):
+        with sqlite3.connect(':memory:') as conn:
+            with pytest.raises(TypeError):
+                conn.executescript(sql_script='CREATE TABLE T(x); INSERT INTO T Values(1);')
+            result = conn.executescript('CREATE TABLE T(x); INSERT INTO T Values(1);')
+            assert isinstance(result, sqlite3.Cursor)
+
+        async def test():
+            async with connect(':memory:') as conn:
+                with pytest.raises(TypeError):
+                    await conn.executescript(sql_script='')
+                cursor = await conn.executescript('CREATE TABLE T(x); INSERT INTO T Values(1);')
+                assert isinstance(cursor, Cursor)
+                cursor = await conn.execute('SELECT * FROM T')
+                assert await cursor.fetchall() == [(1, )]
+
+        asyncio.run(test())
+
+    def test_isolation_level(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                assert conn.isolation_level is conn._conn.isolation_level
+                conn.isolation_level = 'IMMEDIATE'
+                assert conn._conn.isolation_level == 'IMMEDIATE'
+                conn.isolation_level = 'DEFERRED'
+                assert conn._conn.isolation_level == 'DEFERRED'
+
+        asyncio.run(test())
+
+    def test_in_transaction(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                assert not conn.in_transaction
+                await conn.execute('BEGIN')
+                assert conn.in_transaction
 
         asyncio.run(test())

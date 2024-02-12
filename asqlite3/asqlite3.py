@@ -139,13 +139,6 @@ class Connection(threading.Thread):
     async def __aexit__(self, *args):
         await self.close()
 
-    async def close(self):
-        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
-        self._schedule(self._conn.close)
-        self._closed = True
-        self._jobs.put(None)
-        self.join()
-
     async def cursor(self, factory=Cursor):
         return factory(self._schedule, await self._schedule(self._conn.cursor))
 
@@ -155,8 +148,23 @@ class Connection(threading.Thread):
     async def rollback(self):
         await self._schedule(self._conn.rollback)
 
-    async def execute(self, *args, **kwargs):
-        cursor = await self._schedule(partial(self._conn.execute, *args, **kwargs))
+    async def close(self):
+        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
+        self._schedule(self._conn.close)
+        self._closed = True
+        self._jobs.put(None)
+        self.join()
+
+    async def execute(self, sql, parameters=(), /):
+        cursor = await self._schedule(partial(self._conn.execute, sql, parameters))
+        return Cursor(self._schedule, cursor)
+
+    async def executemany(self, sql, parameters, /):
+        cursor = await self._schedule(partial(self._conn.executemany, sql, parameters))
+        return Cursor(self._schedule, cursor)
+
+    async def executescript(self, sql_script, /):
+        cursor = await self._schedule(partial(self._conn.executescript, sql_script))
         return Cursor(self._schedule, cursor)
 
     @property
