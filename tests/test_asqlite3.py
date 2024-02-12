@@ -493,6 +493,23 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_load_extension(self):
+        with sqlite3.connect(':memory') as conn:
+            assert conn.enable_load_extension(True) is None
+
+        async def test():
+            async with connect(':memory:') as conn:
+                assert await conn.enable_load_extension(False) is None
+                with pytest.raises(OperationalError) as e:
+                    assert await conn.load_extension('foo') is None
+                assert str(e.value) == 'not authorized'
+                assert await conn.enable_load_extension(True) is None
+                with pytest.raises(OperationalError) as e:
+                    assert await conn.load_extension('foo') is None
+                assert 'no such file' in str(e.value)
+
+        asyncio.run(test())
+
     def test_isolation_level(self):
         async def test():
             async with connect(':memory:') as conn:

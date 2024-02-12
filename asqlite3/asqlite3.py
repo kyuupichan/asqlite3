@@ -192,8 +192,13 @@ class Connection(threading.Thread):
     async def set_trace_callback(self, trace_callback):
         await self._schedule(partial(self._conn.set_trace_callback, trace_callback))
 
-    # TODO: blobopen, create_window_function, interrupt,
-    # enable_load_extension, load_extension, iterdump, backup, getlimit,
+    async def enable_load_extension(self, enable):
+        await self._schedule(partial(self._conn.enable_load_extension, enable))
+
+    async def load_extension(self, path):
+        await self._schedule(partial(self._conn.load_extension, path))
+
+    # TODO: blobopen, create_window_function, interrupt, iterdump, backup, getlimit,
     # setlimit, getconfig, setconfig, serialize, deserialize, autocommit,
 
     @property
