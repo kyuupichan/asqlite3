@@ -182,9 +182,9 @@ class TestCursor:
                 cursor = await conn.cursor()
                 assert cursor.row_factory is None
                 assert cursor._cursor.row_factory is None
-                cursor.row_factory = sqlite3.Row
-                assert cursor.row_factory is sqlite3.Row
-                assert cursor._cursor.row_factory is sqlite3.Row
+                cursor.row_factory = Row
+                assert cursor.row_factory is Row
+                assert cursor._cursor.row_factory is Row
 
         asyncio.run(test())
 
@@ -279,7 +279,7 @@ class TestConnection:
             conn.execute('BEGIN')
             conn.execute('CREATE TABLE T(x)')
             assert conn.rollback() is None
-            with pytest.raises(sqlite3.OperationalError):
+            with pytest.raises(OperationalError):
                 conn.execute('SELECT * from T')
 
         async def test():
@@ -287,7 +287,7 @@ class TestConnection:
                 await conn.execute('BEGIN')
                 await conn.execute('CREATE TABLE T(x)')
                 assert await conn.rollback() is None
-                with pytest.raises(sqlite3.OperationalError):
+                with pytest.raises(OperationalError):
                     await conn.execute('SELECT * from T')
 
         asyncio.run(test())
@@ -351,6 +351,84 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_create_function(self):
+        def myfunc(x):
+            return x * 8
+
+        with sqlite3.connect(':memory:') as conn:
+            result = conn.create_function(name='myfunc', narg=1, func=myfunc, deterministic=True)
+            assert result is None
+            assert conn.execute('SELECT myfunc(5)').fetchone() == (40, )
+
+        async def test():
+            async with connect(':memory:') as conn:
+                result = await conn.create_function(name='mf', narg=1, func=myfunc,
+                                                    deterministic=True)
+                assert result is None
+                cursor = await conn.execute('SELECT mf(5)')
+                assert await cursor.fetchone() == (40, )
+                result = await conn.create_function(name='mf', narg=1, func=None)
+                with pytest.raises(OperationalError):
+                    await conn.execute('SELECT mf(5)')
+
+        asyncio.run(test())
+
+    def test_create_aggregate(self):
+        class MySum:
+            def __init__(self):
+                self.count = 0
+
+            def step(self, value):
+                self.count += value
+
+            def finalize(self):
+                return self.count
+
+        with sqlite3.connect(':memory:') as conn:
+            assert conn.create_aggregate('mysum', -1, MySum) is None
+            cursor = conn.execute('CREATE TABLE T(x)')
+            cursor.executemany('INSERT INTO T VALUES(?)', ((1, ), (5, )))
+            assert cursor.execute('SELECT mysum(x) FROM T').fetchone() == (6, )
+
+        async def test():
+            async with connect(':memory:') as conn:
+                assert await conn.create_aggregate('mysum2', -1, MySum) is None
+                cursor = await conn.execute('CREATE TABLE T(x)')
+                await cursor.executemany('INSERT INTO T VALUES(?)', ((1, ), (5, )))
+                await cursor.execute('SELECT mysum2(x) FROM T')
+                await cursor.fetchone() == (6, )
+                assert await conn.create_aggregate('mysum2', -1, None) is None
+                with pytest.raises(OperationalError):
+                    await cursor.execute('SELECT mysum2(x) FROM T')
+
+        asyncio.run(test())
+
+    def test_create_collation(self):
+        def collate_reverse(a, b):
+            if a == b:
+                return 0
+            return 1 if a < b else -1
+
+        with sqlite3.connect(':memory:') as conn:
+            assert conn.create_collation('reverse', collate_reverse) is None
+            cursor = conn.execute('CREATE TABLE T(x)')
+            cursor.executemany('INSERT INTO T VALUES(?)', (("a", ), ("b", )))
+            assert (cursor.execute('SELECT x FROM T ORDER BY x COLLATE reverse').fetchall()
+                    == [('b', ), ('a', )])
+
+        async def test():
+            async with connect(':memory:') as conn:
+                assert await conn.create_collation('reverse2', collate_reverse) is None
+                await conn.execute('CREATE TABLE T(x)')
+                await conn.executemany('INSERT INTO T VALUES(?)', (("a", ), ("b", )))
+                cursor = await conn.execute('SELECT x FROM T ORDER BY x COLLATE reverse2')
+                assert await cursor.fetchall() == [('b', ), ('a', )]
+                assert await conn.create_collation('reverse2', None) is None
+                with pytest.raises(OperationalError):
+                    await conn.execute('SELECT x FROM T ORDER BY x COLLATE reverse2')
+
+        asyncio.run(test())
+
     def test_isolation_level(self):
         async def test():
             async with connect(':memory:') as conn:
@@ -376,9 +454,9 @@ class TestConnection:
             async with connect(':memory:') as conn:
                 assert conn.row_factory is None
                 assert conn._conn.row_factory is None
-                conn.row_factory = sqlite3.Row
-                assert conn.row_factory is sqlite3.Row
-                assert conn._conn.row_factory is sqlite3.Row
+                conn.row_factory = Row
+                assert conn.row_factory is Row
+                assert conn._conn.row_factory is Row
 
         asyncio.run(test())
 

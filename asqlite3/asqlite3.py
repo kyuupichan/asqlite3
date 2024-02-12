@@ -167,6 +167,16 @@ class Connection(threading.Thread):
         cursor = await self._schedule(partial(self._conn.executescript, sql_script))
         return Cursor(self._schedule, cursor)
 
+    async def create_function(self, name, narg, func, *, deterministic=False):
+        await self._schedule(partial(self._conn.create_function, name, narg, func,
+                                     deterministic=deterministic))
+
+    async def create_aggregate(self, name, /, narg, aggregate_class):
+        await self._schedule(partial(self._conn.create_aggregate, name, narg, aggregate_class))
+
+    async def create_collation(self, name, callable, /):
+        await self._schedule(partial(self._conn.create_collation, name, callable))
+
     @property
     def isolation_level(self):
         return self._conn.isolation_level
