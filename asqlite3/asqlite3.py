@@ -267,15 +267,13 @@ class Connection(threading.Thread):
         async def setconfig(self, op, enable=True, /):
             return await self.schedule(self._conn.setconfig, op, enable)
 
-        @property
-        async def autocommit(self):
-            return self._conn.autocommit
+        async def autocommit_get(self):
+            return await self.schedule(getattr, self._conn, 'autocommit')
 
-        @autocommit.setter
-        async def autocommit(self, value):
-            self._conn.autocommit = value
+        async def autocommit_set(self, value):
+            return await self.schedule(setattr, self._conn, 'autocommit', value)
 
-    # TODO: interrupt
+    # TODO: interrupt, test return value of something
 
     @property
     def isolation_level(self):

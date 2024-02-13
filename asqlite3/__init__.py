@@ -37,7 +37,8 @@ if sys.version_info >= (3, 12):
         SQLITE_DBCONFIG_WRITABLE_SCHEMA
     )
 
-if sys.version_info < (3, 14):
+if sys.version_info < (3, 12):
+    # Deprecated from 3.12
     from sqlite3 import (
         version, version_info
     )

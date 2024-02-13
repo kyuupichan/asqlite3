@@ -669,6 +669,25 @@ class TestConnection:
 
         asyncio.run(test())
 
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason='requires Python 3.12')
+    def test_autocommit(self):
+        with sqlite3.connect(':memory:') as conn:
+            assert conn.autocommit == LEGACY_TRANSACTION_CONTROL
+            conn.autocommit = True
+            assert conn.autocommit is True
+            conn.autocommit = False
+            assert conn.autocommit is False
+
+        async def test():
+            async with connect(':memory:') as conn:
+                assert await conn.autocommit_get() == LEGACY_TRANSACTION_CONTROL
+                await conn.autocommit_set(True)
+                assert await conn.autocommit_get() is True
+                await conn.autocommit_set(False)
+                assert await conn.autocommit_get() is False
+
+        asyncio.run(test())
+
     def test_isolation_level(self):
         async def test():
             async with connect(':memory:') as conn:
@@ -766,6 +785,6 @@ def test_module_constants():
     if sys.version_info >= (3, 12):
         assert LEGACY_TRANSACTION_CONTROL
 
-    if sys.version_info < (3, 14):
+    if sys.version_info < (3, 12):
         assert isinstance(version, str)
         assert isinstance(version_info, tuple)
