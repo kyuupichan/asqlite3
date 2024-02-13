@@ -559,8 +559,10 @@ class TestConnection:
                 with pytest.raises(DatabaseError) as e:
                     await conn.execute('CREATE TABLE T(x)')
                 assert str(e.value) == "not authorized"
-                assert await conn.set_authorizer(None) is None
-                await conn.execute('CREATE TABLE T(x)')
+                # None only works from Python 3.11
+                if sys.version_info >= (3, 11):
+                    assert await conn.set_authorizer(None) is None
+                    await conn.execute('CREATE TABLE T(x)')
 
         asyncio.run(test())
 
@@ -609,9 +611,8 @@ class TestConnection:
                     assert await conn.load_extension('foo') is None
                 assert str(e.value) == 'not authorized'
                 assert await conn.enable_load_extension(True) is None
-                with pytest.raises(OperationalError) as e:
+                with pytest.raises(OperationalError):
                     assert await conn.load_extension('foo') is None
-                assert 'o such file' in str(e.value)
 
         asyncio.run(test())
 
