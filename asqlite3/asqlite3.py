@@ -205,7 +205,7 @@ class Connection(threading.Thread):
     async def set_progress_handler(self, handler, /, n):
         await self.schedule(self._conn.set_progress_handler, handler, n)
 
-    async def set_trace_callback(self, trace_callback):
+    async def set_trace_callback(self, trace_callback, /):
         await self.schedule(self._conn.set_trace_callback, trace_callback)
 
     if hasattr(sqlite3.Connection, 'enable_load_extension'):

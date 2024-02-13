@@ -596,6 +596,8 @@ class TestConnection:
 
         async def test():
             async with connect(':memory:') as conn:
+                with pytest.raises(TypeError):
+                    await conn.set_trace_callback(trace_callback=trace_callback)
                 assert await conn.set_trace_callback(trace_callback) is None
                 sql = 'CREATE TABLE Z(x, y, z)'
                 await conn.execute(sql)
