@@ -191,7 +191,7 @@ class Connection(threading.Thread):
 
     async def create_function(self, name, narg, func, *, deterministic=False):
         await self.schedule(self._conn.create_function, name, narg, func,
-                             deterministic=deterministic)
+                            deterministic=deterministic)
 
     async def create_aggregate(self, name, /, narg, aggregate_class):
         await self.schedule(self._conn.create_aggregate, name, narg, aggregate_class)
@@ -237,16 +237,16 @@ class Connection(threading.Thread):
         if isinstance(target, Connection):
             target = target._conn
         await self.schedule(self._conn.backup, target, pages=pages, progress=progress,
-                             name=name, sleep=sleep)
+                            name=name, sleep=sleep)
 
     if sys.version_info >= (3, 11):
         async def create_window_function(self, name, num_params, aggregate_class, /):
             await self.schedule(self._conn.create_window_function, name,
-                                 num_params, aggregate_class)
+                                num_params, aggregate_class)
 
         async def blobopen(self, table, column, row, /, *, readonly=False, name='main'):
             return await self.schedule(self._conn.blobopen, table, column, row,
-                                        readonly=readonly, name=name)
+                                       readonly=readonly, name=name)
 
         async def serialize(self, *, name='main'):
             return await self.schedule(self._conn.serialize, name=name)
