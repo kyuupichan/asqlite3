@@ -613,6 +613,34 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_serialize(self):
+        sql = 'CREATE TABLE Z(x, y, z);'
+        with sqlite3.connect(':memory:') as conn:
+            conn.execute(sql)
+            answer = conn.serialize()
+
+        async def test():
+            async with connect(':memory:') as conn:
+                await conn.execute(sql)
+                assert await conn.serialize(name='main') == answer
+
+        asyncio.run(test())
+
+    def test_deserialize(self):
+        sql = 'CREATE TABLE Z(x, y, z);'
+        with sqlite3.connect(':memory:') as conn:
+            conn.execute(sql)
+            conn.execute('INSERT INTO Z VALUES(3,2,1)')
+            raw = conn.serialize()
+
+        async def test():
+            async with connect(':memory:') as conn:
+                await conn.deserialize(raw, name='main')
+                cursor = await conn.execute('SELECT * FROM Z')
+                assert await cursor.fetchall() == [(3,2,1)]
+
+        asyncio.run(test())
+
     def test_isolation_level(self):
         async def test():
             async with connect(':memory:') as conn:

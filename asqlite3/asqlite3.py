@@ -136,9 +136,9 @@ class Connection(threading.Thread):
                 if item is None:
                     break
 
-                future, job, args, kwargs = item
+                future, func, args, kwargs = item
                 try:
-                    call_soon(partial(set_result, future, job(*args, **kwargs)))
+                    call_soon(partial(set_result, future, func(*args, **kwargs)))
                 except BaseException as e:
                     call_soon(partial(set_exception, future, e))
 
@@ -170,9 +170,9 @@ class Connection(threading.Thread):
         await self.schedule(self._conn.rollback)
 
     async def close(self):
-        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
         if self._conn:
             self.schedule(self._conn.close)
+        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
         self._closed = True
         self._jobs.put(None)
         self.join()
@@ -248,7 +248,13 @@ class Connection(threading.Thread):
             return await self.schedule(self._conn.blobopen, table, column, row,
                                         readonly=readonly, name=name)
 
-    # TODO: interrupt, getlimit, setlimit, getconfig, setconfig, serialize, deserialize, autocommit
+        async def serialize(self, *, name='main'):
+            return await self.schedule(self._conn.serialize, name=name)
+
+        async def deserialize(self, data, /, *, name='main'):
+            return await self.schedule(self._conn.deserialize, data, name=name)
+
+    # TODO: interrupt, getlimit, setlimit, getconfig, setconfig, autocommit
 
     @property
     def isolation_level(self):
