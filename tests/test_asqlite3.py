@@ -578,7 +578,9 @@ class TestConnection:
 
         async def test():
             async with connect(':memory:') as conn:
-                assert await conn.set_progress_handler(progress, 2) is None
+                with pytest.raises(TypeError):
+                    await conn.set_progress_handler(progress_handler=progress, n=2)
+                assert await conn.set_progress_handler(progress, n=2) is None
                 with pytest.raises(OperationalError) as e:
                     await conn.execute('CREATE TABLE Z(x, y, z)')
                 assert str(e.value) == "interrupted"

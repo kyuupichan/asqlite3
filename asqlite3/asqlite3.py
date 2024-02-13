@@ -202,7 +202,7 @@ class Connection(threading.Thread):
     async def set_authorizer(self, authorizer_callback, /):
         await self.schedule(self._conn.set_authorizer, authorizer_callback)
 
-    async def set_progress_handler(self, handler, n):
+    async def set_progress_handler(self, handler, /, n):
         await self.schedule(self._conn.set_progress_handler, handler, n)
 
     async def set_trace_callback(self, trace_callback):
