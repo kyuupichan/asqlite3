@@ -660,8 +660,11 @@ class TestConnection:
             async with connect(':memory:') as conn:
                 value = await conn.getconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION)
                 assert isinstance(value, bool)
+                with pytest.raises(TypeError):
+                    await conn.setconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,
+                                         enable=not value)
                 assert await conn.setconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,
-                                            enable=not value) is None
+                                            not value) is None
                 assert await conn.getconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION) is not value
 
         asyncio.run(test())
