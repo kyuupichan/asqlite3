@@ -397,18 +397,20 @@ class TestConnection:
             return x * 8
 
         with sqlite3.connect(':memory:') as conn:
-            result = conn.create_function(name='myfunc', narg=1, func=myfunc, deterministic=True)
+            result = conn.create_function('myfunc', 1, myfunc, deterministic=True)
             assert result is None
             assert conn.execute('SELECT myfunc(5)').fetchone() == (40, )
 
         async def test():
             async with connect(':memory:') as conn:
-                result = await conn.create_function(name='mf', narg=1, func=myfunc,
-                                                    deterministic=True)
+                # sqlite3 in 3.13 deprecated name as a named argument; removed from 3.15
+                with pytest.raises(TypeError):
+                    await conn.create_function(name='mf')
+                result = await conn.create_function('mf', 1, myfunc, deterministic=True)
                 assert result is None
                 cursor = await conn.execute('SELECT mf(5)')
                 assert await cursor.fetchone() == (40, )
-                result = await conn.create_function(name='mf', narg=1, func=None)
+                result = await conn.create_function('mf', 1, None)
                 with pytest.raises(OperationalError):
                     await conn.execute('SELECT mf(5)')
 

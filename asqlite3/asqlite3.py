@@ -189,7 +189,7 @@ class Connection(threading.Thread):
         cursor = await self.schedule(self._conn.executescript, sql_script)
         return Cursor(self.schedule, cursor)
 
-    async def create_function(self, name, narg, func, *, deterministic=False):
+    async def create_function(self, name, narg, func, /, *, deterministic=False):
         await self.schedule(self._conn.create_function, name, narg, func,
                             deterministic=deterministic)
 
