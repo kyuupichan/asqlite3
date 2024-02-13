@@ -745,7 +745,7 @@ class TestConnection:
     def test_isolation_level(self):
         async def test():
             async with connect(':memory:') as conn:
-                assert conn.isolation_level is conn._conn.isolation_level
+                assert conn.isolation_level == conn._conn.isolation_level
                 conn.isolation_level = 'IMMEDIATE'
                 assert conn._conn.isolation_level == 'IMMEDIATE'
                 conn.isolation_level = 'DEFERRED'
