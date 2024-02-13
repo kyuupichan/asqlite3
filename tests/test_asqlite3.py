@@ -809,8 +809,8 @@ def test_module_constants():
 
 
 @pytest.mark.skipif(not ((3, 12) <= sys.version_info < (3, 14)), reason='requires Python 3.12/3')
-@pytest.mark.filterwarnings('ignore:version is deprecated')
-@pytest.mark.filterwarnings('ignore:version_info is deprecated')
 def test_deprecated():
-    assert asqlite3.version is not None
-    assert asqlite3.version_info is not None
+    with pytest.warns(DeprecationWarning):
+        assert asqlite3.version is not None
+    with pytest.warns(DeprecationWarning):
+        assert asqlite3.version_info is not None
