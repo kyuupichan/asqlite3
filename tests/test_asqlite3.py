@@ -596,6 +596,8 @@ class TestConnection:
 
         asyncio.run(test())
 
+    @pytest.mark.skipif(not hasattr(sqlite3.Connection, 'enable_load_extension'),
+                        reason='loadable extensions not compiled in')
     def test_load_extension(self):
         with sqlite3.connect(':memory') as conn:
             assert conn.enable_load_extension(True) is None
@@ -830,7 +832,7 @@ def test_module_constants():
         assert asqlite3.LEGACY_TRANSACTION_CONTROL is not None
 
 
-@pytest.mark.skipif(sys.version_info < (3, 14), reason='requires Python < 3.14')
+@pytest.mark.skipif(sys.version_info >= (3, 14), reason='requires Python < 3.14')
 def test_deprecated(recwarn):
     assert not recwarn
     assert asqlite3.version is not None

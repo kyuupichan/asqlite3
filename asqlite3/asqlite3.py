@@ -208,11 +208,12 @@ class Connection(threading.Thread):
     async def set_trace_callback(self, trace_callback):
         await self.schedule(self._conn.set_trace_callback, trace_callback)
 
-    async def enable_load_extension(self, enable):
-        await self.schedule(self._conn.enable_load_extension, enable)
+    if hasattr(sqlite3.Connection, 'enable_load_extension'):
+        async def enable_load_extension(self, enable):
+            await self.schedule(self._conn.enable_load_extension, enable)
 
-    async def load_extension(self, path):
-        await self.schedule(self._conn.load_extension, path)
+        async def load_extension(self, path):
+            await self.schedule(self._conn.load_extension, path)
 
     async def iterdump(self):
         '''Returns an asynchronous iterator.'''
