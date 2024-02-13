@@ -3,7 +3,6 @@ import os
 import sqlite3
 import sys
 import time
-from functools import partial
 
 import pytest
 
@@ -250,7 +249,8 @@ class TestConnection:
     def test_close(self):
         async def test():
             async with connect(':memory:') as conn:
-                conn._schedule(partial(time.sleep, 0.02))
+                # Don't await, so that the context manager is exited immediately
+                conn.schedule(time.sleep, 0.02)
             assert conn._closed
             assert conn._jobs.empty()
 
@@ -503,7 +503,7 @@ class TestConnection:
             async with connect(':memory:') as conn:
                 await conn.execute('CREATE TABLE T(b BLOB)')
                 await conn.execute('INSERT INTO T VALUES (zeroblob(100))')
-                await conn.run_in_thread(use_blob, await conn.blobopen('T', 'b', 1))
+                await conn.schedule(use_blob, await conn.blobopen('T', 'b', 1))
 
         asyncio.run(test())
 

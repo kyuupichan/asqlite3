@@ -5,6 +5,8 @@
 # See the file "LICENCE" for information about the copyright
 # and warranty status of this software.
 
+'''An asyncio version of sqlite3.'''
+
 import asyncio
 import queue
 import sqlite3
@@ -17,13 +19,13 @@ class Cursor:
     '''An asynchronous wrapper around an sqlite3.Cursor object.'''
 
     def __init__(self, schedule, cursor):
-        self._schedule = schedule
+        self.schedule = schedule
         self._cursor = cursor
 
     def __aiter__(self):
         async def iterate_rows():
             while True:
-                rows = await self._schedule(self._cursor.fetchmany)
+                rows = await self.schedule(self._cursor.fetchmany)
                 if not rows:
                     break
                 for row in rows:
@@ -37,34 +39,34 @@ class Cursor:
         await self.close()
 
     async def close(self):
-        await self._schedule(self._cursor.close)
+        await self.schedule(self._cursor.close)
 
     async def execute(self, sql, parameters=(), /):
-        await self._schedule(partial(self._cursor.execute, sql, parameters))
+        await self.schedule(self._cursor.execute, sql, parameters)
         return self
 
     async def executemany(self, sql, parameters, /):
-        await self._schedule(partial(self._cursor.executemany, sql, parameters))
+        await self.schedule(self._cursor.executemany, sql, parameters)
         return self
 
     async def executescript(self, sql_script, /):
-        await self._schedule(partial(self._cursor.executescript, sql_script))
+        await self.schedule(self._cursor.executescript, sql_script)
         return self
 
     async def fetchall(self):
-        return await self._schedule(self._cursor.fetchall)
+        return await self.schedule(self._cursor.fetchall)
 
     async def fetchmany(self, size=None):
-        return await self._schedule(partial(self._cursor.fetchmany, size))
+        return await self.schedule(self._cursor.fetchmany, size)
 
     async def fetchone(self):
-        return await self._schedule(self._cursor.fetchone)
+        return await self.schedule(self._cursor.fetchone)
 
     async def setinputsizes(self, sizes):
-        return await self._schedule(partial(self._cursor.setinputsizes, sizes))
+        return await self.schedule(self._cursor.setinputsizes, sizes)
 
     async def setoutputsize(self, size, column=None):
-        return await self._schedule(partial(self._cursor.setoutputsize, size, column))
+        return await self.schedule(self._cursor.setoutputsize, size, column)
 
     @property
     def arraysize(self):
@@ -111,11 +113,11 @@ class Connection(threading.Thread):
         self._conn = None
         self._loop = None
 
-    def _schedule(self, job):
+    def schedule(self, func, *args, **kwargs):
         if self._closed:
             raise RuntimeError('DB connection is closed')
         future = self._loop.create_future()
-        self._jobs.put((future, job))
+        self._jobs.put((future, func, args, kwargs))
         return future
 
     def run(self):
@@ -134,9 +136,9 @@ class Connection(threading.Thread):
                 if item is None:
                     break
 
-                future, job = item
+                future, job, args, kwargs = item
                 try:
-                    call_soon(partial(set_result, future, job()))
+                    call_soon(partial(set_result, future, job(*args, **kwargs)))
                 except BaseException as e:
                     call_soon(partial(set_exception, future, e))
 
@@ -149,7 +151,7 @@ class Connection(threading.Thread):
         # here ensures a connection error propagates its exception in the main thread.
         # We must ensure close() is called somewhere once the thread is started.
         try:
-            self._conn = await self._schedule(self._connect)
+            self._conn = await self.schedule(self._connect)
         finally:
             if not self._conn:
                 await self.close()
@@ -159,58 +161,58 @@ class Connection(threading.Thread):
         await self.close()
 
     async def cursor(self, factory=Cursor):
-        return factory(self._schedule, await self._schedule(self._conn.cursor))
+        return factory(self.schedule, await self.schedule(self._conn.cursor))
 
     async def commit(self):
-        await self._schedule(self._conn.commit)
+        await self.schedule(self._conn.commit)
 
     async def rollback(self):
-        await self._schedule(self._conn.rollback)
+        await self.schedule(self._conn.rollback)
 
     async def close(self):
         # Prevent new jobs being added to the queue, and wait for existing jobs to complete
         if self._conn:
-            self._schedule(self._conn.close)
+            self.schedule(self._conn.close)
         self._closed = True
         self._jobs.put(None)
         self.join()
 
     async def execute(self, sql, parameters=(), /):
-        cursor = await self._schedule(partial(self._conn.execute, sql, parameters))
-        return Cursor(self._schedule, cursor)
+        cursor = await self.schedule(self._conn.execute, sql, parameters)
+        return Cursor(self.schedule, cursor)
 
     async def executemany(self, sql, parameters, /):
-        cursor = await self._schedule(partial(self._conn.executemany, sql, parameters))
-        return Cursor(self._schedule, cursor)
+        cursor = await self.schedule(self._conn.executemany, sql, parameters)
+        return Cursor(self.schedule, cursor)
 
     async def executescript(self, sql_script, /):
-        cursor = await self._schedule(partial(self._conn.executescript, sql_script))
-        return Cursor(self._schedule, cursor)
+        cursor = await self.schedule(self._conn.executescript, sql_script)
+        return Cursor(self.schedule, cursor)
 
     async def create_function(self, name, narg, func, *, deterministic=False):
-        await self._schedule(partial(self._conn.create_function, name, narg, func,
-                                     deterministic=deterministic))
+        await self.schedule(self._conn.create_function, name, narg, func,
+                             deterministic=deterministic)
 
     async def create_aggregate(self, name, /, narg, aggregate_class):
-        await self._schedule(partial(self._conn.create_aggregate, name, narg, aggregate_class))
+        await self.schedule(self._conn.create_aggregate, name, narg, aggregate_class)
 
     async def create_collation(self, name, callable, /):
-        await self._schedule(partial(self._conn.create_collation, name, callable))
+        await self.schedule(self._conn.create_collation, name, callable)
 
     async def set_authorizer(self, authorizer_callback):
-        await self._schedule(partial(self._conn.set_authorizer, authorizer_callback))
+        await self.schedule(self._conn.set_authorizer, authorizer_callback)
 
     async def set_progress_handler(self, handler, n):
-        await self._schedule(partial(self._conn.set_progress_handler, handler, n))
+        await self.schedule(self._conn.set_progress_handler, handler, n)
 
     async def set_trace_callback(self, trace_callback):
-        await self._schedule(partial(self._conn.set_trace_callback, trace_callback))
+        await self.schedule(self._conn.set_trace_callback, trace_callback)
 
     async def enable_load_extension(self, enable):
-        await self._schedule(partial(self._conn.enable_load_extension, enable))
+        await self.schedule(self._conn.enable_load_extension, enable)
 
     async def load_extension(self, path):
-        await self._schedule(partial(self._conn.load_extension, path))
+        await self.schedule(self._conn.load_extension, path)
 
     async def iterdump(self):
         # Need to read the lines from iterdump in the DB thread
@@ -228,28 +230,25 @@ class Connection(threading.Thread):
                 yield line
 
         lines = queue.Queue(maxsize=100)
-        self._schedule(partial(enqueue_lines, lines))
+        self.schedule(enqueue_lines, lines)
         return read_lines(lines)
 
     async def backup(self, target, *, pages=-1, progress=None, name="main", sleep=0.250):
         if isinstance(target, Connection):
             target = target._conn
-        await self._schedule(partial(self._conn.backup, target, pages=pages, progress=progress,
-                                     name=name, sleep=sleep))
+        await self.schedule(self._conn.backup, target, pages=pages, progress=progress,
+                             name=name, sleep=sleep)
 
     if sys.version_info >= (3, 11):
         async def create_window_function(self, name, num_params, aggregate_class, /):
-            await self._schedule(partial(self._conn.create_window_function,
-                                         name, num_params, aggregate_class))
+            await self.schedule(self._conn.create_window_function, name,
+                                 num_params, aggregate_class)
 
         async def blobopen(self, table, column, row, /, *, readonly=False, name='main'):
-            return await self._schedule(partial(self._conn.blobopen, table, column, row,
-                                                readonly=readonly, name=name))
+            return await self.schedule(self._conn.blobopen, table, column, row,
+                                        readonly=readonly, name=name)
 
     # TODO: interrupt, getlimit, setlimit, getconfig, setconfig, serialize, deserialize, autocommit
-
-    async def run_in_thread(self, func, *args, **kwargs):
-        return await self._schedule(partial(func, *args, **kwargs))
 
     @property
     def isolation_level(self):
