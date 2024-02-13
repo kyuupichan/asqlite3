@@ -278,7 +278,8 @@ class Connection(threading.Thread):
         async def autocommit_set(self, value):
             return await self.schedule(setattr, self._conn, 'autocommit', value)
 
-    # TODO: interrupt
+    def interrupt(self):
+        return self._conn.interrupt()
 
     @property
     def isolation_level(self):

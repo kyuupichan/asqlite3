@@ -307,6 +307,32 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_interrupt(self):
+        conn = None
+        from threading import Thread, Event
+
+        def interrupt():
+            e.wait()
+            assert conn.interrupt() is None
+
+        e = Event()
+        t = Thread(target=interrupt)
+        t.start()
+
+        async def test():
+            nonlocal conn
+            async with connect(':memory:') as conn:
+                await conn.execute('CREATE TABLE T(x)')
+                await conn.executemany('INSERT INTO T VALUES(?)',
+                                       ((os.urandom(1000), ) for _ in range(500)))
+
+                with pytest.raises(OperationalError):
+                    cursor = await conn.execute('SELECT * from T')
+                    e.set()
+                    await cursor.fetchall()
+
+        asyncio.run(test())
+
     def test_execute(self):
         with sqlite3.connect(':memory:') as conn:
             with pytest.raises(TypeError):
