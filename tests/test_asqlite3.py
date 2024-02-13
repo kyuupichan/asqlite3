@@ -464,7 +464,7 @@ class TestConnection:
             cursor.executemany('INSERT INTO T VALUES(?, ?)', values)
             with pytest.raises(TypeError):
                 conn.create_window_function('sumint', 1, aggregate_class=WindowSum)
-            conn.create_window_function('sumint', 1, WindowSum)
+            assert conn.create_window_function('sumint', 1, WindowSum) is None
             result = cursor.execute('''SELECT x, sumint(y) OVER (
                ORDER BY x ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS sum_y
                FROM T ORDER BY x''').fetchall()
@@ -476,7 +476,7 @@ class TestConnection:
                 await cursor.executemany('INSERT INTO T VALUES(?, ?)', values)
                 with pytest.raises(TypeError):
                     await conn.create_window_function('sumint', 1, aggregate_class=WindowSum)
-                await conn.create_window_function('sumint', 1, WindowSum)
+                assert await conn.create_window_function('sumint', 1, WindowSum) is None
                 await cursor.execute('''SELECT x, sumint(y) OVER (
                    ORDER BY x ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS sum_y
                    FROM T ORDER BY x''')
@@ -582,18 +582,24 @@ class TestConnection:
 
     def test_iterdump(self):
         lines = []
+
+        def collect_lines(sync_it):
+            return list(line for line in sync_it)
+
         with sqlite3.connect(':memory:') as conn:
             sql = 'CREATE TABLE Z(x, y, z);'
             conn.execute(sql)
-            for line in conn.iterdump():
-                lines.append(line)
+            lines = collect_lines(conn.iterdump())
             assert len(lines) == 3 and lines[1] == sql
 
         async def test():
             async with connect(':memory:') as conn:
                 await conn.execute(sql)
-                z = await conn.iterdump()
-                assert lines == [line async for line in z]
+                async_it = await conn.iterdump()
+                assert lines == [line async for line in async_it]
+
+                sync_it = await conn.iterdump_sync()
+                assert await conn.schedule(collect_lines, sync_it) == lines
 
         asyncio.run(test())
 
@@ -634,10 +640,11 @@ class TestConnection:
             conn.execute(sql)
             conn.execute('INSERT INTO Z VALUES(3,2,1)')
             raw = conn.serialize()
+            assert conn.deserialize(raw, name='main') is None
 
         async def test():
             async with connect(':memory:') as conn:
-                await conn.deserialize(raw, name='main')
+                assert await conn.deserialize(raw, name='main') is None
                 cursor = await conn.execute('SELECT * FROM Z')
                 assert await cursor.fetchall() == [(3,2,1)]
 

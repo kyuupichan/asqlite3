@@ -215,6 +215,7 @@ class Connection(threading.Thread):
         await self.schedule(self._conn.load_extension, path)
 
     async def iterdump(self):
+        '''Returns an asynchronous iterator.'''
         # Need to read the lines from iterdump in the DB thread
         def enqueue_lines(lines):
             for line in self._conn.iterdump():
@@ -232,6 +233,10 @@ class Connection(threading.Thread):
         lines = queue.Queue(maxsize=100)
         self.schedule(enqueue_lines, lines)
         return read_lines(lines)
+
+    async def iterdump_sync(self):
+        '''Returns a synchronous iterator that must be iterated via a call to schedule().'''
+        return await self.schedule(self._conn.iterdump)
 
     async def backup(self, target, *, pages=-1, progress=None, name="main", sleep=0.250):
         if isinstance(target, Connection):
@@ -273,7 +278,7 @@ class Connection(threading.Thread):
         async def autocommit_set(self, value):
             return await self.schedule(setattr, self._conn, 'autocommit', value)
 
-    # TODO: interrupt, test return value of something
+    # TODO: interrupt
 
     @property
     def isolation_level(self):
