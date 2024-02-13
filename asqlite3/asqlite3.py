@@ -193,7 +193,7 @@ class Connection(threading.Thread):
         await self.schedule(self._conn.create_function, name, narg, func,
                             deterministic=deterministic)
 
-    async def create_aggregate(self, name, /, narg, aggregate_class):
+    async def create_aggregate(self, name, narg, aggregate_class, /):
         await self.schedule(self._conn.create_aggregate, name, narg, aggregate_class)
 
     async def create_collation(self, name, callable, /):

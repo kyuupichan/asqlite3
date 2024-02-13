@@ -435,6 +435,8 @@ class TestConnection:
 
         async def test():
             async with connect(':memory:') as conn:
+                with pytest.raises(TypeError):
+                    await conn.create_aggregate('mysum2', aggregate_class=MySum)
                 assert await conn.create_aggregate('mysum2', -1, MySum) is None
                 cursor = await conn.execute('CREATE TABLE T(x)')
                 await cursor.executemany('INSERT INTO T VALUES(?)', ((1, ), (5, )))
