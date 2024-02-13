@@ -7,7 +7,6 @@ from functools import partial
 
 import pytest
 
-import asqlite3
 from asqlite3 import *
 
 
@@ -614,6 +613,8 @@ def test_module_constants():
     assert paramstyle == "qmark"
     assert threadsafety in (0, 1, 3)
     assert PrepareProtocol
+
+    import asqlite3
 
     for symbol in (
             '''SQLITE_CREATE_INDEX SQLITE_CREATE_TABLE SQLITE_CREATE_TEMP_INDEX
