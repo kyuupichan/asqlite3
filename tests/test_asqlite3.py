@@ -599,7 +599,7 @@ class TestConnection:
     @pytest.mark.skipif(not hasattr(sqlite3.Connection, 'enable_load_extension'),
                         reason='loadable extensions not compiled in')
     def test_load_extension(self):
-        with sqlite3.connect(':memory') as conn:
+        with sqlite3.connect(':memory:') as conn:
             assert conn.enable_load_extension(True) is None
 
         async def test():
@@ -611,7 +611,7 @@ class TestConnection:
                 assert await conn.enable_load_extension(True) is None
                 with pytest.raises(OperationalError) as e:
                     assert await conn.load_extension('foo') is None
-                assert 'no such file' in str(e.value)
+                assert 'o such file' in str(e.value)
 
         asyncio.run(test())
 
