@@ -803,14 +803,13 @@ def test_module_constants():
     if sys.version_info >= (3, 12):
         assert asqlite3.LEGACY_TRANSACTION_CONTROL is not None
 
-    if sys.version_info < (3, 12):
-        assert asqlite3.version is not None
-        assert asqlite3.version_info is not None
 
-
-@pytest.mark.skipif(not ((3, 12) <= sys.version_info < (3, 14)), reason='requires Python 3.12/3')
-def test_deprecated():
-    with pytest.warns(DeprecationWarning):
-        assert asqlite3.version is not None
-    with pytest.warns(DeprecationWarning):
-        assert asqlite3.version_info is not None
+@pytest.mark.skipif(sys.version_info < (3, 14), reason='requires Python < 3.14')
+def test_deprecated(recwarn):
+    assert not recwarn
+    assert asqlite3.version is not None
+    assert asqlite3.version_info is not None
+    if sys.version_info >= (3,12):
+        assert len(recwarn) == 2
+    else:
+        assert not recwarn
