@@ -239,6 +239,7 @@ class TestConnection:
     def test_connect_args_bad(self):
         async def test():
             with pytest.raises(TypeError):
+                # pylint: disable=unexpected-keyword-arg
                 await connect(':memory:', zombie=6)
 
         asyncio.run(test())
