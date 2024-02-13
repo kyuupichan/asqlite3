@@ -199,7 +199,7 @@ class Connection(threading.Thread):
     async def create_collation(self, name, callable, /):
         await self.schedule(self._conn.create_collation, name, callable)
 
-    async def set_authorizer(self, authorizer_callback):
+    async def set_authorizer(self, authorizer_callback, /):
         await self.schedule(self._conn.set_authorizer, authorizer_callback)
 
     async def set_progress_handler(self, handler, n):

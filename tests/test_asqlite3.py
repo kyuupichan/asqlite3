@@ -558,6 +558,8 @@ class TestConnection:
 
         async def test():
             async with connect(':memory:') as conn:
+                with pytest.raises(TypeError):
+                    await conn.set_authorizer(authorizer_callback=authorizer)
                 assert await conn.set_authorizer(authorizer) is None
                 await conn.execute('CREATE TABLE Z(x)')
                 with pytest.raises(DatabaseError) as e:
