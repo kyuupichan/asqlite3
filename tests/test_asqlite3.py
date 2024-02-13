@@ -613,6 +613,7 @@ class TestConnection:
 
         asyncio.run(test())
 
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason='requires Python 3.11')
     def test_serialize(self):
         sql = 'CREATE TABLE Z(x, y, z);'
         with sqlite3.connect(':memory:') as conn:
@@ -626,6 +627,7 @@ class TestConnection:
 
         asyncio.run(test())
 
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason='requires Python 3.11')
     def test_deserialize(self):
         sql = 'CREATE TABLE Z(x, y, z);'
         with sqlite3.connect(':memory:') as conn:
@@ -638,6 +640,29 @@ class TestConnection:
                 await conn.deserialize(raw, name='main')
                 cursor = await conn.execute('SELECT * FROM Z')
                 assert await cursor.fetchall() == [(3,2,1)]
+
+        asyncio.run(test())
+
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason='requires Python 3.11')
+    def test_limits(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                limit = await conn.getlimit(SQLITE_LIMIT_ATTACHED)
+                assert isinstance(limit, int)
+                assert await conn.setlimit(SQLITE_LIMIT_ATTACHED, limit - 1) == limit
+                assert await conn.getlimit(SQLITE_LIMIT_ATTACHED) == limit - 1
+
+        asyncio.run(test())
+
+    @pytest.mark.skipif(sys.version_info < (3, 12), reason='requires Python 3.12')
+    def test_config(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                value = await conn.getconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION)
+                assert isinstance(value, bool)
+                assert await conn.setconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,
+                                            enable=not value) is None
+                assert await conn.getconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION) is not value
 
         asyncio.run(test())
 
@@ -727,6 +752,13 @@ def test_module_constants():
 
     if sys.version_info >= (3, 11):
         assert Blob
+        for symbol in (
+                '''SQLITE_LIMIT_LENGTH SQLITE_LIMIT_SQL_LENGTH SQLITE_LIMIT_COLUMN
+        SQLITE_LIMIT_EXPR_DEPTH SQLITE_LIMIT_COMPOUND_SELECT SQLITE_LIMIT_VDBE_OP
+        SQLITE_LIMIT_FUNCTION_ARG SQLITE_LIMIT_ATTACHED SQLITE_LIMIT_LIKE_PATTERN_LENGTH
+        SQLITE_LIMIT_VARIABLE_NUMBER SQLITE_LIMIT_TRIGGER_DEPTH SQLITE_LIMIT_WORKER_THREADS
+                ''').split():
+            assert isinstance(getattr(asqlite3, symbol), int)
 
     if sys.version_info >= (3, 12):
         assert LEGACY_TRANSACTION_CONTROL

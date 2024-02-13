@@ -254,7 +254,28 @@ class Connection(threading.Thread):
         async def deserialize(self, data, /, *, name='main'):
             return await self.schedule(self._conn.deserialize, data, name=name)
 
-    # TODO: interrupt, getlimit, setlimit, getconfig, setconfig, autocommit
+        async def getlimit(self, category, /):
+            return await self.schedule(self._conn.getlimit, category)
+
+        async def setlimit(self, category, limit, /):
+            return await self.schedule(self._conn.setlimit, category, limit)
+
+    if sys.version_info >= (3, 12):
+        async def getconfig(self, op, /):
+            return await self.schedule(self._conn.getconfig, op)
+
+        async def setconfig(self, op, enable=True, /):
+            return await self.schedule(self._conn.setconfig, op, enable)
+
+        @property
+        async def autocommit(self):
+            return self._conn.autocommit
+
+        @autocommit.setter
+        async def autocommit(self, value):
+            self._conn.autocommit = value
+
+    # TODO: interrupt
 
     @property
     def isolation_level(self):
