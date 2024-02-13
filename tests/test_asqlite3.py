@@ -6,7 +6,13 @@ import time
 
 import pytest
 
-from asqlite3 import *
+import asqlite3
+
+from asqlite3 import (
+    connect, Connection, Cursor, Row,
+    ProgrammingError, OperationalError, DatabaseError,
+    SQLITE_OK, SQLITE_DENY, SQLITE_CREATE_TABLE,
+)
 
 
 class TestCursor:
@@ -515,6 +521,7 @@ class TestConnection:
 
         with sqlite3.connect(':memory:') as conn:
             assert conn.set_authorizer(authorizer) is None
+            conn.execute('CREATE TABLE Z(x)')
             with pytest.raises(DatabaseError) as e:
                 conn.execute('CREATE TABLE T(x)')
             assert str(e.value) == "not authorized"
@@ -654,10 +661,10 @@ class TestConnection:
     def test_limits(self):
         async def test():
             async with connect(':memory:') as conn:
-                limit = await conn.getlimit(SQLITE_LIMIT_ATTACHED)
+                limit = await conn.getlimit(asqlite3.SQLITE_LIMIT_ATTACHED)
                 assert isinstance(limit, int)
-                assert await conn.setlimit(SQLITE_LIMIT_ATTACHED, limit - 1) == limit
-                assert await conn.getlimit(SQLITE_LIMIT_ATTACHED) == limit - 1
+                assert await conn.setlimit(asqlite3.SQLITE_LIMIT_ATTACHED, limit - 1) == limit
+                assert await conn.getlimit(asqlite3.SQLITE_LIMIT_ATTACHED) == limit - 1
 
         asyncio.run(test())
 
@@ -665,21 +672,22 @@ class TestConnection:
     def test_config(self):
         async def test():
             async with connect(':memory:') as conn:
-                value = await conn.getconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION)
+                value = await conn.getconfig(asqlite3.SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION)
                 assert isinstance(value, bool)
                 with pytest.raises(TypeError):
-                    await conn.setconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,
+                    await conn.setconfig(asqlite3.SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,
                                          enable=not value)
-                assert await conn.setconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,
+                assert await conn.setconfig(asqlite3.SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION,
                                             not value) is None
-                assert await conn.getconfig(SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION) is not value
+                assert (await conn.getconfig(asqlite3.SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION)) \
+                    is not value
 
         asyncio.run(test())
 
     @pytest.mark.skipif(sys.version_info < (3, 12), reason='requires Python 3.12')
     def test_autocommit(self):
         with sqlite3.connect(':memory:') as conn:
-            assert conn.autocommit == LEGACY_TRANSACTION_CONTROL
+            assert conn.autocommit == asqlite3.LEGACY_TRANSACTION_CONTROL
             conn.autocommit = True
             assert conn.autocommit is True
             conn.autocommit = False
@@ -687,7 +695,7 @@ class TestConnection:
 
         async def test():
             async with connect(':memory:') as conn:
-                assert await conn.autocommit_get() == LEGACY_TRANSACTION_CONTROL
+                assert await conn.autocommit_get() == asqlite3.LEGACY_TRANSACTION_CONTROL
                 await conn.autocommit_set(True)
                 assert await conn.autocommit_get() is True
                 await conn.autocommit_set(False)
@@ -749,23 +757,26 @@ class TestConnection:
         asyncio.run(test())
 
 
+
 def test_module_constants():
+    from asqlite3 import (
+        complete_statement, enable_callback_tracebacks, register_adapter,
+        register_converter, PARSE_COLNAMES, PARSE_DECLTYPES, SQLITE_IGNORE,
+        apilevel, paramstyle, threadsafety, PrepareProtocol
+    )
+
     assert not complete_statement('SELECT')
     assert complete_statement('SELECT 1;')
-    assert enable_callback_tracebacks
-    assert register_adapter
-    assert register_converter
+    assert enable_callback_tracebacks is not None
+    assert register_adapter is not None
+    assert register_converter is not None
     assert isinstance(PARSE_COLNAMES, int)
     assert isinstance(PARSE_DECLTYPES, int)
-    assert isinstance(SQLITE_OK, int)
-    assert isinstance(SQLITE_DENY, int)
     assert isinstance(SQLITE_IGNORE, int)
     assert apilevel == "2.0"
     assert paramstyle == "qmark"
     assert threadsafety in (0, 1, 3)
-    assert PrepareProtocol
-
-    import asqlite3
+    assert PrepareProtocol is not None
 
     for symbol in (
             '''SQLITE_CREATE_INDEX SQLITE_CREATE_TABLE SQLITE_CREATE_TEMP_INDEX
@@ -780,7 +791,7 @@ def test_module_constants():
         assert isinstance(getattr(asqlite3, symbol), int)
 
     if sys.version_info >= (3, 11):
-        assert Blob
+        assert asqlite3.Blob is not None
         for symbol in (
                 '''SQLITE_LIMIT_LENGTH SQLITE_LIMIT_SQL_LENGTH SQLITE_LIMIT_COLUMN
         SQLITE_LIMIT_EXPR_DEPTH SQLITE_LIMIT_COMPOUND_SELECT SQLITE_LIMIT_VDBE_OP
@@ -790,8 +801,16 @@ def test_module_constants():
             assert isinstance(getattr(asqlite3, symbol), int)
 
     if sys.version_info >= (3, 12):
-        assert LEGACY_TRANSACTION_CONTROL
+        assert asqlite3.LEGACY_TRANSACTION_CONTROL is not None
 
     if sys.version_info < (3, 12):
-        assert isinstance(version, str)
-        assert isinstance(version_info, tuple)
+        assert asqlite3.version is not None
+        assert asqlite3.version_info is not None
+
+
+@pytest.mark.skipif(not ((3, 12) <= sys.version_info < (3, 14)), reason='requires Python 3.12/3')
+@pytest.mark.filterwarnings('ignore:version is deprecated')
+@pytest.mark.filterwarnings('ignore:version_info is deprecated')
+def test_deprecated():
+    assert asqlite3.version is not None
+    assert asqlite3.version_info is not None

@@ -15,9 +15,9 @@ from sqlite3 import (
     SQLITE_FUNCTION, SQLITE_SAVEPOINT, SQLITE_RECURSIVE,
 )
 
-import sys
+from sys import version_info as _sys_version_info
 
-if sys.version_info >= (3, 11):
+if _sys_version_info >= (3, 11):
     from sqlite3 import (
         Blob, SQLITE_LIMIT_LENGTH, SQLITE_LIMIT_SQL_LENGTH, SQLITE_LIMIT_COLUMN,
         SQLITE_LIMIT_EXPR_DEPTH, SQLITE_LIMIT_COMPOUND_SELECT, SQLITE_LIMIT_VDBE_OP,
@@ -25,7 +25,7 @@ if sys.version_info >= (3, 11):
         SQLITE_LIMIT_VARIABLE_NUMBER, SQLITE_LIMIT_TRIGGER_DEPTH, SQLITE_LIMIT_WORKER_THREADS
     )
 
-if sys.version_info >= (3, 12):
+if _sys_version_info >= (3, 12):
     from sqlite3 import (
         LEGACY_TRANSACTION_CONTROL, SQLITE_DBCONFIG_DEFENSIVE, SQLITE_DBCONFIG_DQS_DDL,
         SQLITE_DBCONFIG_DQS_DML, SQLITE_DBCONFIG_ENABLE_FKEY,
@@ -37,13 +37,27 @@ if sys.version_info >= (3, 12):
         SQLITE_DBCONFIG_WRITABLE_SCHEMA
     )
 
-if sys.version_info < (3, 12):
-    # Deprecated from 3.12
+_deprecated_names = {
+    'version': ((3, 12), (3, 14)),
+    'version_info': ((3, 12), (3, 14)),
+}
+
+
+def __getattr__(name):
+    versions = _deprecated_names.get(name)
+    if versions:
+        import sqlite3
+        first, last = versions
+        if first <= _sys_version_info < last:
+            return getattr(sqlite3, name)
+
+    raise AttributeError(f'module asqlite3 has no attribte {name}')
+
+
+if _sys_version_info < (3, 12):
     from sqlite3 import (
         version, version_info
     )
-
-del sys
 
 from .asqlite3 import (
     Cursor, Connection, connect,
