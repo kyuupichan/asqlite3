@@ -8,6 +8,7 @@
 import asyncio
 import queue
 import sqlite3
+import sys
 import threading
 from functools import partial
 
@@ -119,18 +120,25 @@ class Connection(threading.Thread):
 
     def run(self):
         async def main_loop():
+            def set_result(future, value):
+                if not future.done():
+                    future.set_result(value)
+
+            def set_exception(future, exc):
+                if not future.done():
+                    future.set_exception(exc)
+
             call_soon = self._loop.call_soon_threadsafe
             while True:
                 item = self._jobs.get()
                 if item is None:
                     break
+
                 future, job = item
                 try:
-                    call_soon(future.set_result, job())
+                    call_soon(partial(set_result, future, job()))
                 except BaseException as e:
-                    call_soon(future.set_exception, e)
-                    if not self._conn:  # connection failed?
-                        break
+                    call_soon(partial(set_exception, future, e))
 
         asyncio.run(main_loop())
 
@@ -139,7 +147,12 @@ class Connection(threading.Thread):
         self.start()
         # Connections, like all DB operations, need to happen from the thread.  Waiting
         # here ensures a connection error propagates its exception in the main thread.
-        self._conn = await self._schedule(self._connect)
+        # We must ensure close() is called somewhere once the thread is started.
+        try:
+            self._conn = await self._schedule(self._connect)
+        finally:
+            if not self._conn:
+                await self.close()
         return self
 
     async def __aexit__(self, *args):
@@ -156,7 +169,8 @@ class Connection(threading.Thread):
 
     async def close(self):
         # Prevent new jobs being added to the queue, and wait for existing jobs to complete
-        self._schedule(self._conn.close)
+        if self._conn:
+            self._schedule(self._conn.close)
         self._closed = True
         self._jobs.put(None)
         self.join()
@@ -223,8 +237,19 @@ class Connection(threading.Thread):
         await self._schedule(partial(self._conn.backup, target, pages=pages, progress=progress,
                                      name=name, sleep=sleep))
 
-    # TODO: blobopen, create_window_function, interrupt, getlimit,
-    # setlimit, getconfig, setconfig, serialize, deserialize, autocommit,
+    if sys.version_info >= (3, 11):
+        async def create_window_function(self, name, num_params, aggregate_class, /):
+            await self._schedule(partial(self._conn.create_window_function,
+                                         name, num_params, aggregate_class))
+
+        async def blobopen(self, table, column, row, /, *, readonly=False, name='main'):
+            return await self._schedule(partial(self._conn.blobopen, table, column, row,
+                                                readonly=readonly, name=name))
+
+    # TODO: interrupt, getlimit, setlimit, getconfig, setconfig, serialize, deserialize, autocommit
+
+    async def run_in_thread(self, func, *args, **kwargs):
+        return await self._schedule(partial(func, *args, **kwargs))
 
     @property
     def isolation_level(self):

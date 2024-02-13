@@ -438,6 +438,75 @@ class TestConnection:
 
         asyncio.run(test())
 
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason='requires Python 3.11')
+    def test_create_window_function(self):
+        class WindowSum:
+            def __init__(self):
+                self.count = 0
+
+            def step(self, value):
+                self.count += value
+
+            def value(self):
+                return self.count
+
+            def inverse(self, value):
+                self.count -= value
+
+            def finalize(self):
+                return self.count
+
+        values = [('a', 4), ('b', 5), ('c', 3), ('d', 8), ('e', 1)]
+        answer = [('a', 9), ('b', 12), ('c', 16), ('d', 12), ('e', 9)]
+
+        with sqlite3.connect(':memory:') as conn:
+            cursor = conn.execute('CREATE TABLE T(x, y)')
+            cursor.executemany('INSERT INTO T VALUES(?, ?)', values)
+            with pytest.raises(TypeError):
+                conn.create_window_function('sumint', 1, aggregate_class=WindowSum)
+            conn.create_window_function('sumint', 1, WindowSum)
+            result = cursor.execute('''SELECT x, sumint(y) OVER (
+               ORDER BY x ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS sum_y
+               FROM T ORDER BY x''').fetchall()
+            assert result == answer
+
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.execute('CREATE TABLE T(x, y)')
+                await cursor.executemany('INSERT INTO T VALUES(?, ?)', values)
+                with pytest.raises(TypeError):
+                    await conn.create_window_function('sumint', 1, aggregate_class=WindowSum)
+                await conn.create_window_function('sumint', 1, WindowSum)
+                await cursor.execute('''SELECT x, sumint(y) OVER (
+                   ORDER BY x ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS sum_y
+                   FROM T ORDER BY x''')
+                assert await cursor.fetchall() == answer
+
+        asyncio.run(test())
+
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason='requires Python 3.11')
+    def test_blob_open(self):
+        def use_blob(blob):
+            prefix = b'foo bar baz'
+            assert blob.read() == bytes(100)
+            blob.seek(0)
+            blob.write(prefix)
+            blob.seek(0)
+            assert blob.read() == prefix + bytes(100 - len(prefix))
+
+        with sqlite3.connect(':memory:') as conn:
+            conn.execute('CREATE TABLE T(b BLOB)')
+            conn.execute('INSERT INTO T VALUES (zeroblob(100))')
+            use_blob(conn.blobopen('T', 'b', 1))
+
+        async def test():
+            async with connect(':memory:') as conn:
+                await conn.execute('CREATE TABLE T(b BLOB)')
+                await conn.execute('INSERT INTO T VALUES (zeroblob(100))')
+                await conn.run_in_thread(use_blob, await conn.blobopen('T', 'b', 1))
+
+        asyncio.run(test())
+
     def test_set_authorizer(self):
         def authorizer(action, arg1, _arg2, _db_name, _trigger_name):
             if action == SQLITE_CREATE_TABLE and arg1 == 'T':
