@@ -290,6 +290,14 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_close_idempotent(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                pass
+            await conn.close()
+
+        asyncio.run(test())
+
     def test_cursor(self):
         class MyCursor(Cursor):
             pass

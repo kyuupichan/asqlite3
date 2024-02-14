@@ -126,6 +126,12 @@ class Connection(threading.Thread):
     def _connect(self):
         return sqlite3.connect(self._database, **self._kwargs)
 
+    def _shutdown_thread(self):
+        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
+        self._closed = True
+        self._jobs.put(None)
+        self.join()
+
     def schedule(self, func, *args, **kwargs):
         if self._closed:
             raise RuntimeError('DB connection is closed')
@@ -167,7 +173,7 @@ class Connection(threading.Thread):
             self._conn = await self.schedule(self._connect)
         finally:
             if not self._conn:
-                await self.close()
+                self._shutdown_thread()
         return self
 
     async def __aexit__(self, *args):
@@ -183,12 +189,9 @@ class Connection(threading.Thread):
         await self.schedule(self._conn.rollback)
 
     async def close(self):
-        if self._conn:
-            self.schedule(self._conn.close)
-        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
-        self._closed = True
-        self._jobs.put(None)
-        self.join()
+        if not self._closed:
+            self.schedule(self._conn.close)  # No need to await this
+            self._shutdown_thread()
 
     async def execute(self, sql, parameters=(), /):
         cursor = await self.schedule(self._conn.execute, sql, parameters)
