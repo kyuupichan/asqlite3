@@ -5,10 +5,7 @@ asqlite3
 An asynchronous wrapper for sqlite3.  The library wraps the entirety of sqlite3 (as
 provided on your system) for every version of Python since Python 3.8.
 
-The current version is |release|.
-
-The project is hosted on `GitHub <https://github.com/kyuupichan/asqlite3/>`_.  and uses
-Azure Pipelines for continuous integration.
+The project uses Azure Pipelines for continuous integration.
 
 
 Author and License
