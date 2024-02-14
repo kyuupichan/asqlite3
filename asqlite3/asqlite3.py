@@ -12,7 +12,6 @@ import queue
 import sqlite3
 import sys
 import threading
-from functools import partial
 
 
 class Cursor:
@@ -112,16 +111,20 @@ class Connection(threading.Thread):
                  check_same_thread=True, factory=sqlite3.Connection, cached_statements=128,
                  uri=False, autocommit=None):
             super().__init__()
-            kwargs = dict(timeout=timeout, detect_types=detect_types,
-                          isolation_level=isolation_level, check_same_thread=check_same_thread,
-                          factory=factory, cached_statements=cached_statements, uri=uri)
+            self._database = database
+            self._kwargs = dict(timeout=timeout, detect_types=detect_types,
+                                isolation_level=isolation_level,
+                                check_same_thread=check_same_thread,
+                                factory=factory, cached_statements=cached_statements, uri=uri)
             if autocommit is not None:
-                kwargs['autocommit'] = autocommit
-            self._connect = partial(sqlite3.connect, database, **kwargs)
+                self._kwargs['autocommit'] = autocommit
             self._jobs = queue.Queue()
             self._closed = False
             self._conn = None
             self._loop = None
+
+    def _connect(self):
+        return sqlite3.connect(self._database, **self._kwargs)
 
     def schedule(self, func, *args, **kwargs):
         if self._closed:
