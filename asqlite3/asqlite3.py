@@ -108,30 +108,16 @@ class Cursor:
 class Connection(threading.Thread):
     '''An asynchronous wrapper around an sqlite3.Connection object.'''
 
-    if sys.version_info >= (3, 12):
-        def __init__(self, database, *, timeout=5.0, detect_types=0, isolation_level='DEFERRED',
-                     check_same_thread=True, factory=sqlite3.Connection,
-                     cached_statements=128, uri=False,
-                     autocommit=sqlite3.LEGACY_TRANSACTION_CONTROL):
+    def __init__(self, database, *, timeout=5.0, detect_types=0, isolation_level='DEFERRED',
+                 check_same_thread=True, factory=sqlite3.Connection, cached_statements=128,
+                 uri=False, autocommit=None):
             super().__init__()
-            self._connect = partial(sqlite3.connect, database, timeout=timeout,
-                                    detect_types=detect_types, isolation_level=isolation_level,
-                                    check_same_thread=check_same_thread, factory=factory,
-                                    cached_statements=cached_statements, uri=uri,
-                                    autocommit=autocommit)
-            self._jobs = queue.Queue()
-            self._closed = False
-            self._conn = None
-            self._loop = None
-    else:
-        def __init__(self, database, *, timeout=5.0, detect_types=0, isolation_level='DEFERRED',
-                     check_same_thread=True, factory=sqlite3.Connection,
-                     cached_statements=128, uri=False):
-            super().__init__()
-            self._connect = partial(sqlite3.connect, database, timeout=timeout,
-                                    detect_types=detect_types, isolation_level=isolation_level,
-                                    check_same_thread=check_same_thread, factory=factory,
-                                    cached_statements=cached_statements, uri=uri)
+            kwargs = dict(timeout=timeout, detect_types=detect_types,
+                          isolation_level=isolation_level, check_same_thread=check_same_thread,
+                          factory=factory, cached_statements=cached_statements, uri=uri)
+            if autocommit is not None:
+                kwargs['autocommit'] = autocommit
+            self._connect = partial(sqlite3.connect, database, **kwargs)
             self._jobs = queue.Queue()
             self._closed = False
             self._conn = None

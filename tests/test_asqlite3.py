@@ -253,6 +253,16 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_connect_autocommit_arg(self):
+        async def test():
+            if sys.version_info < (3, 12):
+                with pytest.raises(TypeError):
+                    await Connection(':memory:', autocommit=False).__aenter__()
+            else:
+                Connection(':memory:', autocommit=False)
+
+        asyncio.run(test())
+
     def test_connect_args_bad(self):
         async def test():
             with pytest.raises(TypeError):
