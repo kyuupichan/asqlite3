@@ -149,6 +149,9 @@ Connection
   .. method:: close()
       :async:
 
+     Close the underlying database connection after waiting for pending operations to
+     complete, and shut down the database thread.  Idempotent.
+
   .. method:: execute(sql, parameters=(), /)
         :async:
 

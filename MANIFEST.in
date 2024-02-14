@@ -1,0 +1,2 @@
+include LICENCE
+recursive-include asqlite3 *.py
