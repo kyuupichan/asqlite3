@@ -61,7 +61,22 @@ Client example
 ChangeLog
 =========
 
+
+0.7.0
+-----
+
+* change behaviour of Connection context manager and document it.
+* more tests
+
+
+0.6.0
+-----
+
+* code cleanups and more tests.
+* make close() idempotent.
+
+
 0.5.0
 -----
 
-Initial release.
+* initial release.

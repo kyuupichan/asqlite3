@@ -328,11 +328,13 @@ class Connector:
         self._conn = Connection()
 
     async def __aenter__(self):
+        failed = True
         try:
             await self._conn._connect(self._database, self._kwargs)
-        except:
-            await self._conn.close()
-            raise
+            failed = False
+        finally:
+            if failed:
+                await self._conn.close()
 
         return self._conn
 

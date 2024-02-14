@@ -890,7 +890,8 @@ class TestConnection:
                 async with connect(filename) as conn:
                     async with conn:
                         await conn.execute('CREATE TABLE T(x)')
-                        await conn.executemany('INSERT INTO T VALUES(?)', ((n, ) for n in range(N)))
+                        await conn.executemany('INSERT INTO T VALUES(?)',
+                                               ((n, ) for n in range(N)))
                         raise ValueError
             except ValueError:
                 pass
