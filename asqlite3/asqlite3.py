@@ -148,9 +148,9 @@ class Connection(threading.Thread):
 
                 future, func, args, kwargs = item
                 try:
-                    call_soon(partial(set_result, future, func(*args, **kwargs)))
+                    call_soon(set_result, future, func(*args, **kwargs))
                 except BaseException as e:
-                    call_soon(partial(set_exception, future, e))
+                    call_soon(set_exception, future, e)
 
         asyncio.run(main_loop())
 
