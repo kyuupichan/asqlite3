@@ -17,6 +17,12 @@ The code is released under the `MIT Licence
 <https://github.com/kyuupichan/asqlite3/LICENCE>`_.
 
 
+Documentation
+=============
+
+See `readthedocs <https://py-asqlite3.readthedocs.io/>`_.
+
+
 Library Installation
 ====================
 
