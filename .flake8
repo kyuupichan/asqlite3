@@ -1,0 +1,6 @@
+[flake8]
+
+max_line_length=99
+per-file-ignores=
+  asqlite3/__init__.py:F401,E402
+  docs/conf.py:E402

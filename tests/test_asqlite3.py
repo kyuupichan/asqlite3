@@ -266,7 +266,6 @@ class TestConnection:
     def test_connect_args_bad(self):
         async def test():
             with pytest.raises(TypeError):
-                # pylint: disable=unexpected-keyword-arg
                 await connect(':memory:', zombie=6)
 
         asyncio.run(test())
@@ -299,6 +298,7 @@ class TestConnection:
         asyncio.run(test())
 
     def test_cursor(self):
+
         class MyCursor(Cursor):
             pass
 
@@ -638,6 +638,7 @@ class TestConnection:
 
     def test_set_trace_callback(self):
         stmts = []
+
         def trace_callback(stmt):
             stmts.append(stmt)
 
@@ -739,7 +740,7 @@ class TestConnection:
             async with connect(':memory:') as conn:
                 assert await conn.deserialize(raw, name='main') is None
                 cursor = await conn.execute('SELECT * FROM Z')
-                assert await cursor.fetchall() == [(3,2,1)]
+                assert await cursor.fetchall() == [(3, 2, 1)]
 
         asyncio.run(test())
 
@@ -843,7 +844,6 @@ class TestConnection:
         asyncio.run(test())
 
 
-
 def test_module_constants():
     from asqlite3 import (
         complete_statement, enable_callback_tracebacks, register_adapter,
@@ -899,7 +899,7 @@ def test_deprecated(recwarn):
     assert not recwarn
     assert asqlite3.version is not None
     assert asqlite3.version_info is not None
-    if sys.version_info >= (3,12):
+    if sys.version_info >= (3, 12):
         assert len(recwarn) == 2
     else:
         assert not recwarn

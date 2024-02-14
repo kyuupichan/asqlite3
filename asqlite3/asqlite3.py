@@ -110,18 +110,17 @@ class Connection(threading.Thread):
     def __init__(self, database, *, timeout=5.0, detect_types=0, isolation_level='DEFERRED',
                  check_same_thread=True, factory=sqlite3.Connection, cached_statements=128,
                  uri=False, autocommit=None):
-            super().__init__()
-            self._database = database
-            self._kwargs = dict(timeout=timeout, detect_types=detect_types,
-                                isolation_level=isolation_level,
-                                check_same_thread=check_same_thread,
-                                factory=factory, cached_statements=cached_statements, uri=uri)
-            if autocommit is not None:
-                self._kwargs['autocommit'] = autocommit
-            self._jobs = queue.Queue()
-            self._closed = False
-            self._conn = None
-            self._loop = None
+        super().__init__()
+        self._database = database
+        self._kwargs = {'timeout': timeout, 'detect_types': detect_types,
+                        'isolation_level': isolation_level, 'check_same_thread': check_same_thread,
+                        'factory': factory, 'cached_statements': cached_statements, 'uri': uri}
+        if autocommit is not None:
+            self._kwargs['autocommit'] = autocommit
+        self._jobs = queue.Queue()
+        self._closed = False
+        self._conn = None
+        self._loop = None
 
     def _connect(self):
         return sqlite3.connect(self._database, **self._kwargs)

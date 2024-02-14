@@ -14,6 +14,7 @@
 
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath('..'))
 
 from asqlite3 import asqlite3_version_str as version

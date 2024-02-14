@@ -1,2 +1,0 @@
-pylint --rcfile=.pylintrc asqlite3/*.py
-pylint --rcfile=.pylintrc-tests tests/*.py
