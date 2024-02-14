@@ -54,6 +54,12 @@ Client example
 
   asyncio.run(main())
 
+
+.. seealso::
+
+   * :ref:`asqlite3-connection-context-manager`
+
+
 =========
 Reference
 =========
@@ -72,9 +78,23 @@ Module functions
                       uri=False, autocommit=sqlite3.LEGACY_TRANSACTION_CONTROL)
    :async:
 
-   Open a connection to an SQLite database and return a `Connection`_ object.
+   Open a connection to the database and start a thread to handle database requests.  This
+   function is only intended to be used as part of an ``async with`` asynchronous context
+   managercode block, in which case the target, **conn** below, is a `Connection`_ object:
 
-   Note that the *autocommit* argument is only present For Python versions 3.12 and later.
+     .. code-block:: python
+
+        async with asqlite3.connect(filename) as conn:
+            a code block
+
+   When control leaves the block, the library closes the database connection and shuts
+   down the thread cleanly, after waiting for pending operations to complete.  Note that
+   leaving the block does *not* necessarily commit pending transactions.  For more
+   information see sqlite3 module's documentation about Transaction Control.
+
+   The *autocommit* argument is only present For Python versions 3.12 and later.
+
+   See also :ref:`asqlite3-connection-context-manager`.
 
 
 Module constants
@@ -187,10 +207,11 @@ Connection
            await conn.schedule(print_lines, sync_iter)
 
   .. method:: schedule(func, *args, **kwargs)
-        :async:
 
-        Run the synchronous function ``func`` in the thread of the database connection,
-        passing it the given arguments.
+        Schedule the synchronous function ``func`` to run in the thread of the database
+        connection, passing it the given arguments.  Returns a future, which can be
+        **await**-ed if the caller wishes to wait for the invocation to complete before
+        continuing.
 
   .. method:: interrupt()
 
@@ -312,6 +333,43 @@ Cursor objects
   .. property:: rowcount
 
   .. property:: row_factory
+
+
+.. _asqlite3-connection-context-manager:
+
+
+How to use the connection context manager
+=========================================
+
+Just like for the **sqlite3** module, a :class:`Connection` object can be used as a
+context manager that automatically commits or rolls back open transactions when leaving
+the body of the context manager.  If the body of the ``async with`` statement finishes
+without exceptions, the transaction is committed.  If this commit fails, or if the block
+body raises an uncaught exception, the transaction is rolled back.  If the underlying
+connection's :attr:`autocommit` attribute is ``False``, a new transaction is implicitly
+opened after committing or rolling back.
+
+If there is no open transaction upon leaving the body of the ``async with`` statement, or
+if :attr:`autocommit` is ``True``, the context manager does nothing.
+
+For example:
+
+  .. code-block::
+
+     async with connect(filename) as conn:
+          async with conn:
+              # Start transaction 1
+              await conn.execute('CREATE TABLE T(x)')
+              await conn.executemany('INSERT INTO T VALUES(?)', ((n, ) for n in range(10)))
+
+          # transaction 1 is now committed
+
+          async with conn:
+              # Start transaction 2
+              ....
+
+**Note** that the context manager neither implicitly opens a new transaction nor closes
+the connection.
 
 
 Indices and tables

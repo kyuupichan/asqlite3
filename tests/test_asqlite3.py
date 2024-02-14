@@ -9,6 +9,7 @@ import asyncio
 import os
 import sqlite3
 import sys
+import threading
 import time
 
 import pytest
@@ -239,6 +240,23 @@ class TestCursor:
 
 class TestConnection:
 
+    def test_close_no_connect(self):
+        async def test():
+            conn = Connection()
+            await conn.close()
+
+        asyncio.run(test())
+
+    def test_thread_closed_bad_invocation(self):
+        async def test():
+            count = threading.active_count()
+            with pytest.raises(TypeError):
+                async with connect(None):
+                    pass
+            assert threading.active_count() == count
+
+        asyncio.run(test())
+
     def test_connect(self):
         async def test():
             async with connect(':memory:') as conn:
@@ -257,9 +275,10 @@ class TestConnection:
         async def test():
             if sys.version_info < (3, 12):
                 with pytest.raises(TypeError):
-                    await Connection(':memory:', autocommit=False).__aenter__()
+                    await connect(':memory:', autocommit=False).__aenter__()
             else:
-                Connection(':memory:', autocommit=False)
+                async with connect(':memory:', autocommit=False):
+                    pass
 
         asyncio.run(test())
 
@@ -840,6 +859,63 @@ class TestConnection:
                 await conn.executemany('INSERT INTO T VALUES(?)',
                                        ((n, ) for n in range(100)))
                 assert conn.total_changes == 100
+
+        asyncio.run(test())
+
+    def test_leave_with_context_commit(self, tmpdir):
+
+        filename = os.path.join(tmpdir, 'test.sqlite')
+        N = 100
+
+        async def test():
+            async with connect(filename) as conn:
+                async with conn:
+                    await conn.execute('CREATE TABLE T(x)')
+                    await conn.executemany('INSERT INTO T VALUES(?)', ((n, ) for n in range(N)))
+
+                async with connect(filename) as conn2:
+                    cursor = await conn2.execute('SELECT * FROM T')
+                    values = await cursor.fetchall()
+                    assert len(values) == N
+
+        asyncio.run(test())
+
+    def test_leave_with_context_rollback(self, tmpdir):
+
+        filename = os.path.join(tmpdir, 'test.sqlite')
+        N = 100
+
+        async def test():
+            try:
+                async with connect(filename) as conn:
+                    async with conn:
+                        await conn.execute('CREATE TABLE T(x)')
+                        await conn.executemany('INSERT INTO T VALUES(?)', ((n, ) for n in range(N)))
+                        raise ValueError
+            except ValueError:
+                pass
+
+            async with connect(filename) as conn:
+                cursor = await conn.execute('SELECT * FROM T')
+                values = await cursor.fetchall()
+                assert not values
+
+        asyncio.run(test())
+
+    def test_leave_connect_context_no_commit(self, tmpdir):
+
+        filename = os.path.join(tmpdir, 'test.sqlite')
+        N = 100
+
+        async def test():
+            async with connect(filename) as conn:
+                await conn.execute('CREATE TABLE T(x)')
+                await conn.executemany('INSERT INTO T VALUES(?)', ((n, ) for n in range(N)))
+
+            async with connect(filename) as conn2:
+                cursor = await conn2.execute('SELECT * FROM T')
+                values = await cursor.fetchall()
+                assert not values
 
         asyncio.run(test())
 

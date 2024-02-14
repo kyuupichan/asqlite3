@@ -104,32 +104,42 @@ class Cursor:
         self._cursor.row_factory = value
 
 
-class Connection(threading.Thread):
+class Connection:
     '''An asynchronous wrapper around an sqlite3.Connection object.'''
 
-    def __init__(self, database, *, timeout=5.0, detect_types=0, isolation_level='DEFERRED',
-                 check_same_thread=True, factory=sqlite3.Connection, cached_statements=128,
-                 uri=False, autocommit=None):
-        super().__init__()
-        self._database = database
-        self._kwargs = {'timeout': timeout, 'detect_types': detect_types,
-                        'isolation_level': isolation_level, 'check_same_thread': check_same_thread,
-                        'factory': factory, 'cached_statements': cached_statements, 'uri': uri}
-        if autocommit is not None:
-            self._kwargs['autocommit'] = autocommit
+    def __init__(self):
         self._jobs = queue.Queue()
-        self._closed = False
-        self._conn = None
-        self._loop = None
-
-    def _connect(self):
-        return sqlite3.connect(self._database, **self._kwargs)
-
-    def _shutdown_thread(self):
-        # Prevent new jobs being added to the queue, and wait for existing jobs to complete
         self._closed = True
-        self._jobs.put(None)
-        self.join()
+        self._conn = None
+        self._loop = asyncio.get_running_loop()
+        self._thread = None
+
+    async def _connect(self, database, kwargs):
+        self._thread = threading.Thread(target=asyncio.run, args=(self._thread_loop(), ))
+        self._thread.start()
+        self._closed = False
+        self._conn = await self.schedule(sqlite3.connect, database, **kwargs)
+
+    async def _thread_loop(self):
+        def set_result(future, value):
+            if not future.done():
+                future.set_result(value)
+
+        def set_exception(future, exc):
+            if not future.done():
+                future.set_exception(exc)
+
+        call_soon = self._loop.call_soon_threadsafe
+        while True:
+            item = self._jobs.get()
+            if item is None:
+                break
+
+            future, func, args, kwargs = item
+            try:
+                call_soon(set_result, future, func(*args, **kwargs))
+            except BaseException as e:
+                call_soon(set_exception, future, e)
 
     def schedule(self, func, *args, **kwargs):
         if self._closed:
@@ -138,45 +148,15 @@ class Connection(threading.Thread):
         self._jobs.put((future, func, args, kwargs))
         return future
 
-    def run(self):
-        async def main_loop():
-            def set_result(future, value):
-                if not future.done():
-                    future.set_result(value)
-
-            def set_exception(future, exc):
-                if not future.done():
-                    future.set_exception(exc)
-
-            call_soon = self._loop.call_soon_threadsafe
-            while True:
-                item = self._jobs.get()
-                if item is None:
-                    break
-
-                future, func, args, kwargs = item
-                try:
-                    call_soon(set_result, future, func(*args, **kwargs))
-                except BaseException as e:
-                    call_soon(set_exception, future, e)
-
-        asyncio.run(main_loop())
-
     async def __aenter__(self):
-        self._loop = asyncio.get_running_loop()
-        self.start()
-        # Connections, like all DB operations, need to happen from the thread.  Waiting
-        # here ensures a connection error propagates its exception in the main thread.
-        # We must ensure close() is called somewhere once the thread is started.
-        try:
-            self._conn = await self.schedule(self._connect)
-        finally:
-            if not self._conn:
-                self._shutdown_thread()
         return self
 
-    async def __aexit__(self, *args):
-        await self.close()
+    async def __aexit__(self, exc_type, _exc_value, _tb):
+        if self.in_transaction:
+            if exc_type:
+                await self.rollback()
+            else:
+                await self.commit()
 
     async def cursor(self, factory=Cursor):
         return factory(self.schedule, await self.schedule(self._conn.cursor))
@@ -189,8 +169,12 @@ class Connection(threading.Thread):
 
     async def close(self):
         if not self._closed:
-            self.schedule(self._conn.close)  # No need to await this
-            self._shutdown_thread()
+            if self._conn:
+                self.schedule(self._conn.close)  # No need to await this
+            # Prevent new jobs being added to the queue, and wait for existing jobs to complete
+            self._closed = True
+            self._jobs.put(None)
+            self._thread.join()
 
     async def execute(self, sql, parameters=(), /):
         cursor = await self.schedule(self._conn.execute, sql, parameters)
@@ -330,4 +314,30 @@ class Connection(threading.Thread):
         return self._conn.total_changes
 
 
-connect = Connection
+class Connector:
+
+    def __init__(self, database, *, timeout=5.0, detect_types=0, isolation_level='DEFERRED',
+                 check_same_thread=True, factory=sqlite3.Connection, cached_statements=128,
+                 uri=False, autocommit=None):
+        self._database = database
+        self._kwargs = {'timeout': timeout, 'detect_types': detect_types,
+                        'isolation_level': isolation_level, 'check_same_thread': check_same_thread,
+                        'factory': factory, 'cached_statements': cached_statements, 'uri': uri}
+        if autocommit is not None:
+            self._kwargs['autocommit'] = autocommit
+        self._conn = Connection()
+
+    async def __aenter__(self):
+        try:
+            await self._conn._connect(self._database, self._kwargs)
+        except:
+            await self._conn.close()
+            raise
+
+        return self._conn
+
+    async def __aexit__(self, *args):
+        await self._conn.close()
+
+
+connect = Connector
