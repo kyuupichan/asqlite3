@@ -301,6 +301,17 @@ class TestConnection:
 
         asyncio.run(test())
 
+    def test_cursor_closed(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                async with await conn.cursor() as cursor:
+                    pass
+                with pytest.raises(ProgrammingError) as e:
+                    await cursor.execute('BEGIN')
+                assert 'annot operate on a closed cursor' in str(e.value)
+
+        asyncio.run(test())
+
     def test_commit(self):
         with sqlite3.connect(':memory:') as conn:
             conn.execute('BEGIN')
