@@ -6,7 +6,7 @@ import setuptools
 def find_version(filename):
     with open(filename) as f:
         text = f.read()
-    match = re.search(r"^_version_str = '(.*)'$", text, re.MULTILINE)
+    match = re.search(r"^asqlite3_version_str = '(.*)'$", text, re.MULTILINE)
     if not match:
         raise RuntimeError('cannot find version')
     return match.group(1)
