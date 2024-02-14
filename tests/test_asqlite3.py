@@ -18,7 +18,7 @@ import asqlite3
 from asqlite3 import (
     connect, Connection, Cursor, Row,
     ProgrammingError, OperationalError, DatabaseError,
-    SQLITE_OK, SQLITE_DENY, SQLITE_CREATE_TABLE,
+    SQLITE_OK, SQLITE_DENY, SQLITE_CREATE_TABLE, asqlite3_version, asqlite3_version_str,
 )
 
 
@@ -859,6 +859,10 @@ def test_module_constants():
 
     if sys.version_info >= (3, 12):
         assert asqlite3.LEGACY_TRANSACTION_CONTROL is not None
+
+
+def test_asqlite3_version():
+    assert asqlite3_version_str == '.'.join(str(part) for part in asqlite3_version)
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 14), reason='requires Python < 3.14')

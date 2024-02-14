@@ -44,5 +44,5 @@ from .asqlite3 import (
     Cursor, Connection, connect,
 )
 
-_version_str = '0.5'
-_version = tuple(int(part) for part in _version_str.split('.'))
+asqlite3_version_str = '0.5'
+asqlite3_version = tuple(int(part) for part in asqlite3_version_str.split('.'))
