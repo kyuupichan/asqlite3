@@ -1,6 +1,6 @@
-===========
-py-asqlite3
-===========
+========
+asqlite3
+========
 
 An asynchronous wrapper for sqlite3.  The library wraps the entirety of sqlite3 (as
 provided on your system) for every version of Python since Python 3.8.
@@ -80,8 +80,8 @@ Module functions
 Module constants
 ================
 
-**asqilte3** provides all constants in the **sqlite3** module, in addition to some
-relating only to aslite3.
+**asqilte3** provides all constants in the **sqlite3** module, in addition to some new
+ones:
 
 .. data:: asqlite3_version_str
 
@@ -95,76 +95,223 @@ relating only to aslite3.
 Connection
 ==========
 
-The ``Connection`` class wraps the Connection class of sqlite3 and provides all its
-methods and properties.  ``Connection`` objects should be created by calling the
-:func:`connect` function.
+.. class:: Connection
 
-A connection can be used as as an asynchronous context manager, in which case the
-connection will be closed when control leaves the block via the `__aexit__` method.
+  The ``Connection`` class wraps the Connection class of sqlite3 and provides all of its
+  methods and properties.  ``Connection`` objects should be created by calling the
+  :func:`connect` function.
 
-Successful creation of a `Connection` starts a thread in which all database interactions
-using the connection must happen - this is enforced by sqlite itself.
+  A connection can be used as as an asynchronous context manager, in which case the
+  connection will be closed when control leaves the block via the `__aexit__` method.
 
+  Successful entering of the context of a ``Connection`` via the `__aenter__` method
+  starts a thread in which all uses of the database connection must happen - this is
+  enforced by sqlite itself.  The only exception is :func:`interrupt`.
 
-Cursor
-======
+  Python 3.12 introduces the **autocommit** property of sqlite3 database connections.
+  This property can only be accessed in the connection's thread, so explicit asynchronous
+  :func:`autocommit_get` and :func:`autocommit_set` methods must be used to access this
+  property.
 
-The Cursor class wraps the Cursor class of sqlite3 and provides all its methods and
-properties.  Cursor objects should be created by calling the cursor() method on an asqlite
-Connection object.
+  Python 3.13 deprecates the use of named arguments for some of these methods, intending
+  to remove their support in Python 3.15.  Being a new library, **asqlite3** does not
+  support the deprecated method signatures.
 
-Cursor can be used as as an asynchronous context manager, in which case the cursor will be
-closed when control leaves the block via the `__aexit__` method.
-
-A cursor can be used as as an asynchronous iterator.  In such cases, rows are fetched
-arraysize rows at a time.
-
-
-Methods
--------
-
-The following methods, with the exception of ``connection`` and ``sqlite3_connection`` are
-asyncronous versions of the underlying **sqlite3** ``Cursor`` methods.  Except where
-documented below, refer to the Python sqlite3 documentation for more details.
-
-.. method:: Cursor.close()
+  .. method:: cursor(factory=Cursor)
       :async:
 
-.. method:: Cursor.execute(sql, parameters=(), /)
+  .. method:: commit()
       :async:
 
-.. method:: Cursor.executemany(sql, parameters, /)
+  .. method:: rollback()
       :async:
 
-.. method:: Cursor.executescript(sql_script, /)
+  .. method:: close()
       :async:
 
-.. method:: Cursor.fetchall()
-      :async:
+  .. method:: execute(sql, parameters=(), /)
+        :async:
 
-.. method:: Cursor.fetchmany(size=cursor.arraysize)
-      :async:
+  .. method:: executemany(sql, parameters, /)
+        :async:
 
-.. method:: Cursor.fetchone()
-      :async:
+  .. method:: executescript(sql_script, /)
+        :async:
 
-.. property:: Cursor.arraysize
+  .. method:: create_function(name, narg, func, /, *, deterministic=False)
+        :async:
 
-.. property:: Cursor.connection
+  .. method:: create_aggregate(name, narg, aggregate_class, /)
+        :async:
 
-   Returns an asqlite3 Connection object.
+  .. method:: create_collation(name, callable, /)
+        :async:
 
-.. property:: Cursor.sqlite3_connection
+  .. method:: set_authorizer(authorizer_callback, /)
+        :async:
 
-   Returns the underlying sqlite3 Connection object.
+  .. method:: set_progress_handler(handler, /, n)
+        :async:
 
-.. property:: Cursor.description
+  .. method:: set_trace_callback(trace_callback, /)
+        :async:
 
-.. property:: Cursor.lastrowid
+  .. method:: backup(target, *, pages=-1, progress=None, name="main", sleep=0.250)
+        :async:
 
-.. property:: Cursor.rowcount
+  .. method:: iterdump()
+        :async:
 
-.. property:: Cursor.row_factory
+        Returns an asynchronous iterator which can be used as follows:
+
+        .. code-block::
+
+           async for line in await conn.iterdump():
+               print(line)
+
+        See also :func:`iterdump_sync`.
+
+  .. method:: iterdump_sync()
+        :async:
+
+        Returns a synchronous iterator.  As the iterator accesses the database connection,
+        it must be used via a call to :func:`schedule`.  For example:
+
+        .. code-block::
+
+           def print_lines(lines):
+               for line in lines:
+                   print(line)
+
+           sync_iter = await conn.iterdump_sync()
+           await conn.schedule(print_lines, sync_iter)
+
+  .. method:: schedule(func, *args, **kwargs)
+        :async:
+
+        Run the synchronous function ``func`` in the thread of the database connection,
+        passing it the given arguments.
+
+  .. method:: interrupt()
+
+        Note this method is synchronous.
+
+  The following methods are available if loadable extension support is compiled into
+  Python's sqlite3 module:
+
+  .. method:: enable_load_extension(enable)
+        :async:
+
+  .. method:: load_extension(path)
+        :async:
+
+  The following methods are available in Python versions 3.11 and later:
+
+  .. method:: create_window_function(name, num_params, aggregate_class, /):
+        :async:
+
+  .. method:: blobopen(table, column, row, /, *, readonly=False, name='main')
+        :async:
+
+  .. method:: serialize(*, name='main')
+        :async:
+
+  .. method:: deserialize(data, /, *, name='main')
+        :async:
+
+  .. method:: getlimit(category, /)
+        :async:
+
+  .. method:: setlimit(category, limit, /)
+        :async:
+
+  The following methods are available in Python versions 3.12 and later:
+
+  .. method:: getconfig(op, /)
+        :async:
+
+  .. method:: setconfig(op, enable=True, /)
+        :async:
+
+  .. method:: autocommit_get()
+        :async:
+
+        Return the **autocommit** property of the underlying sqlite3 connection.
+
+  .. method:: autocommit_set(value)
+        :async:
+
+        Set the **autocommit** property of the underlying sqlite3 connection.
+
+  .. property:: isolation_level
+
+  .. property:: in_transaction
+
+  .. property:: row_factory
+
+  .. property:: text_factory
+
+  .. property:: total_changes
+
+
+Cursor objects
+==============
+
+.. class:: Cursor
+
+  The ``Cursor`` class is an asynchronous wrapper of the Cursor class of sqlite3, and
+  provides all its methods and properties.  ``Cursor`` objects should be created by
+  calling the :func:`cursor` method on an asqlite :class:`Connection` object.
+
+  A cursor object can be used as as an asynchronous context manager, in which case the
+  cursor will be closed when control leaves the block via the ``__aexit__`` method.
+
+  A cursor can be used as as an asynchronous iterator.  In such cases, rows are fetched
+  :attr:`arraysize` rows at a time.
+
+  The following methods are asyncronous versions of the underlying sqlite3 ``Cursor``
+  methods.  The properties, except for :attr:`connection` and :attr:`sqlite3_connection`,
+  pass through to the underlying sqlite3 ``Cursor``.  Refer to the Python sqlite3
+  documentation for more details.
+
+  .. method:: close()
+        :async:
+
+  .. method:: execute(sql, parameters=(), /)
+        :async:
+
+  .. method:: executemany(sql, parameters, /)
+        :async:
+
+  .. method:: executescript(sql_script, /)
+        :async:
+
+  .. method:: fetchall()
+        :async:
+
+  .. method:: fetchmany(size=cursor.arraysize)
+        :async:
+
+  .. method:: fetchone()
+        :async:
+
+  .. property:: arraysize
+
+  .. property:: connection
+
+     Returns an asqlite3 :class:`Connection` object.
+
+  .. property:: sqlite3_connection
+
+     Returns the underlying sqlite3 Connection object.
+
+  .. property:: description
+
+  .. property:: lastrowid
+
+  .. property:: rowcount
+
+  .. property:: row_factory
 
 
 Indices and tables
