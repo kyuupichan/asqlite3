@@ -222,7 +222,17 @@ class TestCursor:
         async def test():
             async with connect(':memory:') as conn:
                 cursor = await conn.cursor()
-                assert cursor.connection is cursor._cursor.connection
+                assert cursor.connection is conn
+                assert isinstance(cursor.connection, Connection)
+
+        asyncio.run(test())
+
+    def test_sqlite3_connection(self):
+        async def test():
+            async with connect(':memory:') as conn:
+                cursor = await conn.cursor()
+                assert cursor.sqlite3_connection is cursor._cursor.connection
+                assert isinstance(cursor.sqlite3_connection, sqlite3.Connection)
 
         asyncio.run(test())
 

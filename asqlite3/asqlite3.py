@@ -78,7 +78,10 @@ class Cursor:
 
     @property
     def connection(self):
-        # Note - this returns an sqlite3.Connection, not an asqlite3.Connection, object.
+        return self.schedule.__self__
+
+    @property
+    def sqlite3_connection(self):
         return self._cursor.connection
 
     @property
